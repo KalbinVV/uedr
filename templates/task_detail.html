@@ -1,0 +1,55 @@
+<!-- templates/task_detail.html -->
+{% extends "base.html" %}
+{% block content %}
+<h2>Детали задачи</h2>
+
+<div style="background: #f8fafc; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+  <div><strong>ID задачи:</strong> {{ task_id }}</div>
+  <div><strong>Статус:</strong>
+    <span style="color: {% if task.status == 'completed' %}#2e7d32
+                {% elif task.status == 'failed' %}#d32f2f
+                {% else %}#1976d2{% endif %};">
+      {% if task.status == 'running' %}Выполняется
+      {% elif task.status == 'completed' %}Успешно
+      {% elif task.status == 'failed' %}Ошибка
+      {% endif %}
+    </span>
+  </div>
+  {% if task.result %}
+    <div><strong>Миньон:</strong> {{ task.result.minion or '—' }}</div>
+    <div><strong>Сценарий:</strong> {{ task.result.state or '—' }}</div>
+  {% endif %}
+  <div><strong>Начало:</strong> {{ "%.2f"|format(task.started_at) }}</div>
+  {% if task.finished_at %}
+    <div><strong>Завершение:</strong> {{ "%.2f"|format(task.finished_at) }}</div>
+  {% endif %}
+  {% if task.error %}
+    <div style="color: #d32f2f;"><strong>Ошибка:</strong> {{ task.error }}</div>
+  {% endif %}
+</div>
+
+{% if task.result and task.result.details %}
+  <h3>Полный лог выполнения</h3>
+  <pre style="
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    max-height: 600px;
+    font-size: 13px;
+  ">{{ task.result.details | tojson(indent=2) }}</pre>
+{% elif task.result %}
+  <h3>Результат</h3>
+  <pre style="
+    background: #f1f5f9;
+    padding: 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+  ">{{ task.result | tojson(indent=2) }}</pre>
+{% else %}
+  <p>Нет данных для отображения.</p>
+{% endif %}
+
+<a href="{{ url_for('tasks') }}" style="display: inline-block; margin-top: 20px; color: #2a5298;">← Назад к журналу</a>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% if last_incidents %}
+  <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+    <thead>
+      <tr style="border-bottom: 2px solid #eee;">
+        <th style="text-align: left; padding: 8px;">Миньон</th>
+        {% for field in incident_fields %}
+          <th style="text-align: left; padding: 8px;">{{ field.display_name }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for inc in last_incidents %}
+        <tr style="border-bottom: 1px solid #f0f0f0;">
+          <td style="padding: 8px;">
+            {% if inc.minion_id %}
+              <a href="{{ url_for('minion_detail', minion_id=inc.minion_id) }}" style="color: #2a5298; text-decoration: underline;">{{ inc.minion_id }}</a>
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          {% for field in incident_fields %}
+            <td style="padding: 8px;">{{ inc.get(field.field_key, '—') }}</td>
+          {% endfor %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p>Нет инцидентов.</p>
+{% endif %}

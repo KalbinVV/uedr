@@ -1,0 +1,234 @@
+<!-- templates/base.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UEDR</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #2a5298;
+            --primary-dark: #1a3a70;
+            --sidebar-width: 260px;
+            --sidebar-collapsed: 70px;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+        body {
+            background-color: #f8fafc;
+            color: #2d3748;
+            display: flex;
+            min-height: 100vh;
+        }
+        .sidebar {
+            width: var(--sidebar-width);
+            background: #1e2a4a;
+            color: #e0e6f0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            z-index: 100;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.2);
+            transition: width 0.3s ease;
+        }
+        .sidebar.collapsed {
+            width: var(--sidebar-collapsed);
+        }
+        .logo-section {
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid #3c4a6b;
+        }
+        .sidebar.collapsed .logo-text {
+            display: none;
+        }
+        .nav-links {
+            padding: 16px 0;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 20px;
+            color: var(--text-light);
+            text-decoration: none;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        .sidebar.collapsed .nav-item span {
+            display: none;
+        }
+        .sidebar.collapsed .nav-item {
+            justify-content: center;
+            gap: 0;
+            padding: 12px;
+        }
+        .nav-item:hover, .nav-item.active {
+            background: #2d3b5f;
+        }
+        .user-panel {
+            padding: 16px 20px;
+            border-top: 1px solid #3c4a6b;
+            margin-top: auto;
+        }
+        .sidebar.collapsed .user-panel {
+            display: none;
+        }
+        .main-content {
+            transition: margin-left 0.3s ease;
+        }
+        .sidebar:not(.collapsed) ~ .main-content {
+            margin-left: var(--sidebar-width);
+        }
+        .sidebar.collapsed ~ .main-content {
+            margin-left: var(--sidebar-collapsed);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            background: white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+            position: sticky;
+            top: 0;
+            z-index: 90;
+        }
+        .menu-toggle {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #2a5298;
+        }
+        .page-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--primary);
+        }
+        .container {
+            padding: 24px;
+        }
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        .flash {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+        .flash.success { background: #e6fffa; color: #28a745; border-left: 4px solid #28a745; }
+        .flash.error { background: #ffeaea; color: #dc3545; border-left: 4px solid #dc3545; }
+    </style>
+</head>
+<body>
+
+    <!-- Боковая панель -->
+    <aside class="sidebar" id="sidebar">
+        <div class="logo-section">
+            <i class="fas fa-shield-alt"></i>
+            <span class="logo-text">UEDR</span>
+        </div>
+
+        <nav class="nav-links">
+            <a href="{{ url_for('dashboard') }}" class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                <i class="fas fa-home"></i>
+                <span>Дашборд</span>
+            </a>
+            <a href="{{ url_for('scripts') }}" class="nav-item {% if request.endpoint in ('scripts', 'edit_script') %}active{% endif %}">
+                <i class="fas fa-file-code"></i>
+                <span>Сценарии</span>
+            </a>
+            <a href="{{ url_for('incidents') }}" class="nav-item {% if request.endpoint == 'incidents' %}active{% endif %}">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>Инциденты</span>
+            </a>
+            <a href="{{ url_for('rules') }}" class="nav-item {% if request.endpoint in ('rules', 'edit_rule') %}active{% endif %}">
+                <i class="fas fa-robot"></i>
+                <span>Правила</span>
+            </a>
+            <a href="{{ url_for('tasks') }}" class="nav-item {% if request.endpoint in ('tasks', 'task_detail') %}active{% endif %}">
+                <i class="fas fa-tasks"></i>
+                <span>Журнал задач</span>
+            </a>
+            <a href="{{ url_for('incident_config_view') }}" class="nav-item {% if request.endpoint == 'incident_config_view' %}active{% endif %}">
+                <i class="fas fa-cog"></i>
+                <span>Конфигурация</span>
+            </a>
+        </nav>
+
+        <div class="user-panel">
+            <div class="user-info">
+                <div class="username">
+                    <i class="fas fa-user"></i> {{ username }}
+                </div>
+                <a href="{{ url_for('logout') }}">
+                    <button class="logout-btn" style="background: none; border: 1px solid #4a5568; color: #a0aec0; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer;">
+                        <i class="fas fa-sign-out-alt"></i> Выйти
+                    </button>
+                </a>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Основной контент -->
+    <main class="main-content">
+        <header class="header">
+            <button class="menu-toggle" id="menu-toggle">
+                <i class="fas fa-bars"></i>
+            </button>
+            <h1 class="page-title">{{ title or "UEDR" }}</h1>
+        </header>
+
+        <div class="container">
+            <!-- Flash-сообщения -->
+            <div class="flash-messages">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="flash {{ category if category in ['success', 'error'] else 'info' }}">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+            </div>
+
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <script>
+        // Выдвижная панель
+        const sidebar = document.getElementById('sidebar');
+        const toggleBtn = document.getElementById('menu-toggle');
+
+        toggleBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+        });
+
+        // Закрытие при клике вне (опционально)
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth < 768 && !sidebar.contains(e.target) && !toggleBtn.contains(e.target)) {
+                sidebar.classList.add('collapsed');
+            }
+        });
+    </script>
+</body>
+</html>

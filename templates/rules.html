@@ -1,0 +1,51 @@
+<!-- templates/rules.html -->
+{% extends "base.html" %}
+{% block content %}
+<h2>Правила автоматической реакции</h2>
+
+<a href="{{ url_for('edit_rule') }}" style="display: inline-block; margin-bottom: 16px; padding: 8px 16px; background: #2a5298; color: white; text-decoration: none; border-radius: 4px;">+ Новое правило</a>
+
+{% if rules %}
+  <div style="display: flex; flex-direction: column; gap: 12px;">
+    {% for rule in rules %}
+      <div style="background: white; padding: 16px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.08);">
+        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+          <div>
+            <h3 style="margin: 0; font-size: 18px; color: {% if rule.enabled %}#2a5298{% else %}#999{% endif %};">
+              {{ rule.name }} {% if not rule.enabled %}(выключено){% endif %}
+            </h3>
+            <div style="font-size: 14px; color: #555; margin-top: 6px;">
+              Сценарий: <code>{{ rule.script_name }}</code>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <a href="{{ url_for('edit_rule', rule_id=rule.id) }}" style="padding: 6px 12px; background: #4a5568; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;">Редактировать</a>
+            <form method="post" action="{{ url_for('delete_rule', rule_id=rule.id) }}" style="display: inline;" onsubmit="return confirm('Удалить правило?')">
+              <button type="submit" style="padding: 6px 12px; background: #e53e3e; color: white; border: none; border-radius: 4px; font-size: 13px; cursor: pointer;">Удалить</button>
+            </form>
+            <form method="post" action="{{ url_for('toggle_rule', rule_id=rule.id) }}" style="display: inline;">
+              <button type="submit" style="padding: 6px 12px; background: {% if rule.enabled %}#e53e3e{% else %}#38a169{% endif %}; color: white; border: none; border-radius: 4px; font-size: 13px; cursor: pointer;">
+                {{ "Выключить" if rule.enabled else "Включить" }}
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <div style="font-size: 14px;">
+          <strong>Логика:</strong> {{ "Все условия (И)" if rule.logic == "AND" else "Любое условие (ИЛИ)" }}
+        </div>
+        <div style="margin-top: 8px;">
+          <strong>Условия:</strong>
+          <ul style="padding-left: 20px; margin-top: 4px;">
+            {% for cond in rule.conditions %}
+              <li><code>{{ cond.field_key }} == {{ cond.value }}</code></li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p>Нет правил. <a href="{{ url_for('edit_rule') }}">Создать первое правило</a>.</p>
+{% endif %}
+{% endblock %}

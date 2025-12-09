@@ -1,0 +1,136 @@
+<!-- templates/dashboard.html -->
+{% extends "base.html" %}
+{% block content %}
+
+<!-- График инцидентов -->
+<div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 24px;">
+  <h3 style="margin-top: 0; color: #2a5298;">Инциденты за последние 24 часа</h3>
+  <canvas id="incidentChart" height="100"></canvas>
+</div>
+
+<!-- Последние инциденты -->
+<div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 24px;">
+  <h3 style="margin-top: 0; color: #2a5298;">Последние инциденты</h3>
+  <div id="last-incidents-table">
+    {% include 'dashboard_incidents_table.html' %}
+  </div>
+</div>
+
+<!-- Последние задачи -->
+<div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+  <h3 style="margin-top: 0; color: #2a5298;">Последние задачи</h3>
+  <div id="last-tasks-table">
+    {% include 'dashboard_tasks_table.html' %}
+  </div>
+</div>
+
+<!-- Карточки миньонов -->
+{% if minions %}
+  <h2 style="margin: 32px 0 16px; color: #2a5298;">Миньоны</h2>
+  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+    {% for m in minions %}
+      <a href="{{ url_for('minion_detail', minion_id=m.id) }}" style="text-decoration: none; color: inherit;">
+        <div style="background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 20px; transition: transform 0.2s;">
+          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+            <div>
+              <h3 style="margin: 0; font-size: 18px; color: #2a5298;">{{ m.id }}</h3>
+              <div style="font-size: 14px; color: #666; margin-top: 4px;">{{ m.os }} {{ m.os_version }}</div>
+            </div>
+            <span style="padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; {% if m.is_online %}background: #e8f5e9; color: #2e7d32;{% else %}background: #ffeaea; color: #d32f2f;{% endif %}">
+              {{ "онлайн" if m.is_online else "оффлайн" }}
+            </span>
+          </div>
+          <div style="font-size: 14px; color: #555; line-height: 1.5;">
+            <div><strong>IP:</strong> {{ m.ip or '—' }}</div>
+            <div><strong>Ядро:</strong> {{ m.kernel or '—' }}</div>
+          </div>
+        </div>
+      </a>
+    {% endfor %}
+  </div>
+{% endif %}
+
+<script>
+  let chart = null;
+
+  function initChart(data) {
+    const ctx = document.getElementById('incidentChart').getContext('2d');
+    const now = new Date();
+    const labels = [];
+    for (let i = 23; i >= 0; i--) {
+      const date = new Date(now.getTime() - i * 60 * 60 * 1000);
+      labels.push(date.getHours() + ':00');
+    }
+
+    if (chart) {
+      chart.destroy();
+    }
+
+    chart = new Chart(ctx, {
+      type: 'bar',
+       {
+        labels: labels,
+        datasets: [{
+          label: 'Инциденты',
+          data: data,  // ← теперь точно массив
+          backgroundColor: '#2a5298',
+          borderColor: '#1a3a70',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { stepSize: 1 }
+          }
+        },
+        plugins: {
+          legend: { display: false }
+        }
+      }
+    });
+  }
+
+  async function fetchInitialData() {
+    try {
+      const response = await fetch('/api/dashboard-data');
+      const data = await response.json();
+      initChart(data.chart_data);
+      return data;
+    } catch (error) {
+      console.error('Ошибка при загрузке данных:', error);
+      return null;
+    }
+  }
+
+  async function updateDashboard() {
+    try {
+      const response = await fetch('/api/dashboard-data');
+      const data = await response.json();
+
+      chart.data.datasets[0].data = data.chart_data;
+      chart.update();
+
+      const incidentsHtml = await fetch('/api/dashboard-incidents-html').then(r => r.text());
+      const tasksHtml = await fetch('/api/dashboard-tasks-html').then(r => r.text());
+
+      document.getElementById('last-incidents-table').innerHTML = incidentsHtml;
+      document.getElementById('last-tasks-table').innerHTML = tasksHtml;
+
+    } catch (error) {
+      console.error('Ошибка при автообновлении:', error);
+    }
+  }
+
+  // Инициализация с безопасным JSON
+  initChart({{ chart_data | tojson }});
+  setTimeout(() => {
+    updateDashboard();
+    setInterval(updateDashboard, 2000);
+  }, 2000);
+</script>
+
+{% endblock %}

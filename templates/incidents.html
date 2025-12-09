@@ -1,0 +1,42 @@
+<!-- templates/incidents.html -->
+{% extends "base.html" %}
+{% block content %}
+<h2>Инциденты</h2>
+
+{% if not fields %}
+  <p style="color: #e53e3e;">⚠️ Нет настроенных полей. Перейдите в <a href="{{ url_for('incident_config_view') }}">Конфигурацию инцидентов</a>.</p>
+{% elif incidents %}
+  <div style="overflow-x: auto;">
+    <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
+      <thead>
+        <tr style="background: #2a5298; color: white;">
+          <th style="padding: 12px; text-align: left;">Миньон</th>
+          {% for field in fields %}
+            <th style="padding: 12px; text-align: left;">{{ field.display_name }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for inc in incidents %}
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 12px;">
+              {% if inc.minion_id %}
+                <a href="{{ url_for('minion_detail', minion_id=inc.minion_id) }}" style="color: #2a5298; text-decoration: underline;">
+                  {{ inc.minion_id }}
+                </a>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            {% for field in fields %}
+              <td style="padding: 12px;">{{ inc.get(field.field_key, '—') }}</td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p>Нет инцидентов.</p>
+{% endif %}
+{% endblock %}

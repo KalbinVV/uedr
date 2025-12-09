@@ -1,0 +1,22 @@
+<!-- templates/edit_script.html -->
+{% extends "base.html" %}
+{% block content %}
+<h2>{{ "Редактирование" if name else "Создание" }} сценария</h2>
+
+<form method="post">
+  <div style="margin-bottom: 15px;">
+    <label for="name">Имя сценария (без .sls):</label>
+    <input type="text" id="name" name="name" value="{{ name or '' }}" required
+           style="padding: 8px; width: 300px; margin-left: 10px;">
+    <div style="font-size: 0.9em; color: #666; margin-left: 160px;">Только буквы, цифры, '-', '_'</div>
+  </div>
+
+  <div style="margin-bottom: 15px;">
+    <label for="content">Содержимое .sls файла:</label><br>
+    <textarea name="content" id="content" rows="20" style="width: 100%; padding: 10px; font-family: monospace; margin-top: 5px;">{{ content }}</textarea>
+  </div>
+
+  <button type="submit" style="padding: 10px 20px; background: #2a5298; color: white; border: none; border-radius: 4px; margin-right: 10px;">Сохранить</button>
+  <a href="{{ url_for('scripts') }}" style="padding: 10px 20px; background: #ccc; text-decoration: none; border-radius: 4px;">Отмена</a>
+</form>
+{% endblock %}

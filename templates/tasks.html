@@ -1,0 +1,49 @@
+<!-- templates/tasks.html -->
+{% extends "base.html" %}
+{% block content %}
+<h2>Журнал задач</h2>
+
+{% if tasks %}
+  <div style="display: flex; flex-direction: column; gap: 16px;">
+    {% for task in tasks %}
+      <div style="
+        padding: 16px;
+        border-radius: 8px;
+        background: {% if task.status == 'completed' %}#e8f5e9
+                  {% elif task.status == 'failed' %}#ffeaea
+                  {% else %}#f0f4f8{% endif %};
+        border-left: 4px solid {% if task.status == 'completed' %}#2e7d32
+                              {% elif task.status == 'failed' %}#d32f2f
+                              {% else %}#1976d2{% endif %};
+      ">
+        <div>
+          <strong>ID задачи:</strong>
+          <a href="{{ url_for('task_detail', task_id=task.task_id) }}" style="color: #2a5298; text-decoration: underline;">
+            {{ task.task_id[:8] }}...
+          </a>
+        </div>
+        <div>
+          <strong>Статус:</strong>
+          <span style="color: {% if task.status == 'completed' %}#2e7d32
+                             {% elif task.status == 'failed' %}#d32f2f
+                             {% else %}#1976d2{% endif %};">
+            {% if task.status == 'running' %}Выполняется
+            {% elif task.status == 'completed' %}Успешно
+            {% elif task.status == 'failed' %}Ошибка
+            {% endif %}
+          </span>
+        </div>
+        {% if task.result %}
+          <div><strong>Миньон:</strong> {{ task.result.minion or '—' }}</div>
+          <div><strong>Сценарий:</strong> {{ task.result.state or '—' }}</div>
+        {% endif %}
+        <div><strong>Начало:</strong> {{ "%.2f"|format(task.started_at) }}</div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p>Нет записей в журнале.</p>
+{% endif %}
+
+<a href="{{ url_for('scripts') }}" style="display: inline-block; margin-top: 20px; color: #2a5298;">← Назад к сценариям</a>
+{% endblock %}

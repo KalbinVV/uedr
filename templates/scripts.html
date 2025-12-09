@@ -1,0 +1,66 @@
+<!-- templates/scripts.html -->
+{% extends "base.html" %}
+{% block content %}
+<h2>Сценарии реагирования</h2>
+
+<a href="{{ url_for('edit_script') }}" style="display: inline-block; margin-bottom: 15px; padding: 8px 16px; background: #2a5298; color: white; text-decoration: none; border-radius: 4px;">+ Новый сценарий</a>
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    {% for msg in messages %}
+      <div style="padding: 10px; margin: 10px 0; background: {% if 'error' in msg %}#ffebee{% else %}#e8f5e9{% endif %}; color: {% if 'error' in msg %}#c62828{% else %}#2e7d32{% endif %}; border-radius: 4px;">
+        {{ msg }}
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+{% if scripts %}
+  <table>
+    <thead>
+      <tr>
+        <th>Имя сценария</th>
+        <th>Действия</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for name in scripts %}
+        <tr>
+          <td><code>{{ name }}.sls</code></td>
+          <td>
+            <a href="{{ url_for('edit_script', name=name) }}">Редактировать</a> |
+            <form action="{{ url_for('delete_script', name=name) }}" method="post" style="display: inline;" onsubmit="return confirm('Удалить сценарий?')">
+              <button type="submit" style="background: none; border: none; color: #d32f2f; cursor: pointer;">Удалить</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h3 style="margin-top: 30px;">Применить сценарий</h3>
+  <form method="post" action="{{ url_for('apply_script') }}">
+    <div style="margin-bottom: 10px;">
+      <label>Миньон:</label>
+      <select name="minion_id" required style="padding: 6px; margin-left: 10px;">
+        {% for m in minions or [] %}
+          <option value="{{ m.id }}">{{ m.id }}</option>
+        {% endfor %}
+        <!-- Если minions не переданы, можно сделать AJAX или отдельную страницу, но для простоты — перезагрузим с миньонами -->
+      </select>
+    </div>
+    <div style="margin-bottom: 10px;">
+      <label>Сценарий:</label>
+      <select name="script_name" required style="padding: 6px; margin-left: 10px;">
+        {% for name in scripts %}
+          <option value="{{ name }}">{{ name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" style="padding: 8px 16px; background: #2a5298; color: white; border: none; border-radius: 4px;">Применить</button>
+  </form>
+
+{% else %}
+  <p>Нет сохранённых сценариев.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,80 @@
+<!-- templates/edit_rule.html -->
+{% extends "base.html" %}
+{% block content %}
+<h2>{{ "Редактирование правила" if rule else "Новое правило" }}</h2>
+
+<form method="post">
+  <div style="margin-bottom: 16px;">
+    <label>Имя правила:</label>
+    <input type="text" name="name" value="{{ rule.name if rule else '' }}" required
+           style="width: 100%; padding: 8px; margin-top: 4px;">
+  </div>
+
+  <div style="margin-bottom: 16px;">
+    <label>Сценарий:</label>
+    <select name="script_name" required style="width: 100%; padding: 8px; margin-top: 4px;">
+      <option value="">— Выберите сценарий —</option>
+      {% for s in scripts %}
+        <option value="{{ s }}" {% if rule and rule.script_name == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div style="margin-bottom: 16px; padding: 12px; background: #f8fafc; border-radius: 6px;">
+    <label>Логика условия:</label><br>
+    <label style="margin-right: 16px; margin-top: 8px;">
+      <input type="radio" name="logic" value="AND" {% if not rule or rule.logic == "AND" %}checked{% endif %}>
+      Все условия должны выполняться (И)
+    </label>
+    <label>
+      <input type="radio" name="logic" value="OR" {% if rule and rule.logic == "OR" %}checked{% endif %}>
+      Достаточно одного условия (ИЛИ)
+    </label>
+  </div>
+
+  <div style="margin-bottom: 16px;">
+    <label>Условия:</label>
+    <div id="conditions-container" style="margin-top: 8px; display: grid; gap: 10px;">
+      {% if rule and rule.conditions %}
+        {% for cond in rule.conditions %}
+        <div class="condition-row" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end;">
+          <input type="text" name="cond_field_{{ loop.index0 }}" value="{{ cond.field_key }}" placeholder="Поле (src_ip)" required style="padding: 6px;">
+          <input type="text" name="cond_value_{{ loop.index0 }}" value="{{ cond.value }}" placeholder="Значение (192.168.1.10)" required style="padding: 6px;">
+          <button type="button" onclick="this.closest('.condition-row').remove()" style="padding: 4px 8px; background: #e53e3e; color: white; border: none; border-radius: 4px;">×</button>
+        </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+    <button type="button" onclick="addCondition()" style="margin-top: 8px; padding: 6px 12px; background: #3182ce; color: white; border: none; border-radius: 4px;">+ Добавить условие</button>
+  </div>
+
+  <div style="margin-bottom: 16px;">
+    <label>
+      <input type="checkbox" name="enabled" {% if not rule or rule.enabled %}checked{% endif %}>
+      Правило включено
+    </label>
+  </div>
+
+  <button type="submit" style="padding: 10px 20px; background: #2a5298; color: white; border: none; border-radius: 4px;">Сохранить</button>
+  <a href="{{ url_for('rules') }}" style="padding: 10px 20px; background: #f0f0f0; color: #333; text-decoration: none; border-radius: 4px; margin-left: 10px;">Отмена</a>
+</form>
+
+<script>
+function addCondition() {
+  const container = document.getElementById('conditions-container');
+  const index = container.children.length;
+  const div = document.createElement('div');
+  div.className = 'condition-row';
+  div.style.display = 'grid';
+  div.style.gridTemplateColumns = '1fr 1fr auto';
+  div.style.gap = '8px';
+  div.style.alignItems = 'end';
+  div.innerHTML = `
+    <input type="text" name="cond_field_${index}" placeholder="Поле (src_ip)" required style="padding: 6px;">
+    <input type="text" name="cond_value_${index}" placeholder="Значение (192.168.1.10)" required style="padding: 6px;">
+    <button type="button" onclick="this.closest('.condition-row').remove()" style="padding: 4px 8px; background: #e53e3e; color: white; border: none; border-radius: 4px;">×</button>
+  `;
+  container.appendChild(div);
+}
+</script>
+{% endblock %}

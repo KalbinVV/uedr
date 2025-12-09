@@ -1,0 +1,137 @@
+<!-- templates/minion_detail.html -->
+{% extends "base.html" %}
+{% block content %}
+<h2>Миньон: {{ minion.id }}</h2>
+
+{% if not minion.is_online %}
+  <div style="background: #ffeaea; color: #c6282f; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
+    ⚠️ Миньон в оффлайне. Невозможно получить данные.
+  </div>
+  <a href="{{ url_for('dashboard') }}" style="color: #2a5298;">← Назад к дашборду</a>
+{% else %}
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+    <!-- Системная информация -->
+    <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+      <h3 style="margin-top: 0; color: #2a5298;">Система</h3>
+      <div style="font-size: 14px; line-height: 1.6;">
+        <div><strong>ОС:</strong> {{ minion.grains.get('os', '—') }} {{ minion.grains.get('osrelease', '') }}</div>
+        <div><strong>Ядро:</strong> {{ minion.grains.get('kernel', '—') }} {{ minion.grains.get('kernelrelease', '') }}</div>
+        <div><strong>Архитектура:</strong> {{ minion.grains.get('cpuarch', '—') }}</div>
+        <div><strong>Хостнейм:</strong> {{ minion.grains.get('host', '—') }}</div>
+        <div><strong>Время:</strong> {{ minion.grains.get('time', '—') }}</div>
+      </div>
+    </div>
+
+    <!-- Сеть -->
+    <div style="background: white; padding: 20px;;border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+      <h3 style="margin-top: 0; color: #2a5298;">Сеть</h3>
+      <div style="font-size: 14px; line-height: 1.6;">
+        {% if minion.ipv4_all %}
+          <div><strong>IPv4:</strong> {{ minion.ipv4_all | join(', ') }}</div>
+        {% else %}
+          <div><strong>IPv4:</strong> —</div>
+        {% endif %}
+        <div><strong>MAC:</strong> {{ minion.grains.get('hwaddr_interfaces', {}) | pprint | truncate(100) }}</div>
+      </div>
+    </div>
+
+    <!-- Память -->
+    <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+      <h3 style="margin-top: 0; color: #2a5298;">Память</h3>
+      {% set mem = minion.mem_info %}
+      {% if mem %}
+        {% set total = mem.get('MemTotal', {}).get('value') | int %}
+        {% set free = mem.get('MemFree', {}).get('value') | int %}
+        {% if total > 0 %}
+          {% set used = total - free %}
+          {% set percent = (used / total * 100) | round(1) %}
+          <div>Всего: {{ (total / 1024) | round }} MB</div>
+          <div>Свободно: {{ (free / 1024) | round }} MB</div>
+          <div style="margin-top: 8px;">
+            <div style="height: 10px; background: #e0e0e0; border-radius: 5px; overflow: hidden;">
+              <div style="height: 100%; width: {{ percent }}%; background: #4caf50;"></div>
+            </div>
+            <div style="font-size: 13px; margin-top: 4px;">Использовано: {{ percent }}%</div>
+          </div>
+        {% endif %}
+      {% else %}
+        —
+      {% endif %}
+    </div>
+
+    <!-- Диск -->
+    <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+      <h3 style="margin-top: 0; color: #2a5298;">Диск</h3>
+      <div style="font-size: 14px;">
+        {% for mount, info in minion.disk_usage.items() %}
+          <div style="margin-bottom: 12px;">
+            <div><strong>{{ mount }}</strong></div>
+            {% set total = info.get('1K-blocks') | int %}
+            {% set used = info.get('used') | int %}
+            {% if total > 0 %}
+              {% set percent = (used / total * 100) | round(1) %}
+              <div style="font-size: 13px;">Использовано: {{ percent }}%</div>
+              <div style="height: 6px; background: #e0e0e0; border-radius: 3px; margin-top: 4px; overflow: hidden;">
+                <div style="height: 100%; width: {{ percent }}%; background: #2196f3;"></div>
+              </div>
+            {% endif %}
+          </div>
+        {% else %}
+          —
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Топ процессов -->
+  <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+    <h3 style="margin-top: 0; color: #2a5298;">Топ процессов</h3>
+    {% if minion.top_processes %}
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <thead>
+          <tr style="border-bottom: 2px solid #eee;">
+            <th style="text-align: left; padding: 8px;">PID</th>
+            <th style="text-align: left; padding: 8px;">Пользователь</th>
+            <th style="text-align: left; padding: 8px;">CPU %</th>
+            <th style="text-align: left; padding: 8px;">Память %</th>
+            <th style="text-align: left; padding: 8px;">Команда</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for proc in minion.top_processes %}
+            <tr style="border-bottom: 1px solid #f0f0f0;">
+              <td style="padding: 8px;">{{ proc.get('pid', '—') }}</td>
+              <td style="padding: 8px;">{{ proc.get('user', '—') }}</td>
+              <td style="padding: 8px;">{{ proc.get('cpu', '—') }}</td>
+              <td style="padding: 8px;">{{ proc.get('mem', '—') }}</td>
+              <td style="padding: 8px;">{{ proc.get('command', '—') | truncate(50) }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      Нет данных о процессах.
+    {% endif %}
+  </div>
+
+  <div style="margin-top: 20px;">
+    <a href="{{ url_for('scripts') }}" style="
+      padding: 10px 20px;
+      background: #2a5298;
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      display: inline-block;
+    ">Применить сценарий</a>
+    <a href="{{ url_for('dashboard') }}" style="
+      padding: 10px 20px;
+      background: #f0f0f0;
+      color: #333;
+      text-decoration: none;
+      border-radius: 6px;
+      display: inline-block;
+      margin-left: 10px;
+    ">← Назад</a>
+  </div>
+{% endif %}
+{% endblock %}

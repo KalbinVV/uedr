@@ -1,0 +1,31 @@
+{% if last_tasks %}
+  <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+    <thead>
+      <tr style="border-bottom: 2px solid #eee;">
+        <th style="text-align: left; padding: 8px;">Статус</th>
+        <th style="text-align: left; padding: 8px;">Миньон</th>
+        <th style="text-align: left; padding: 8px;">Сценарий</th>
+        <th style="text-align: left; padding: 8px;">Время</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for task in last_tasks %}
+        <tr style="border-bottom: 1px solid #f0f0f0;">
+          <td style="padding: 8px;">
+            <span style="color: {% if task.status == 'completed' %}#2e7d32{% elif task.status == 'failed' %}#d32f2f{% else %}#1976d2{% endif %};">
+              {% if task.status == 'running' %}Выполняется
+              {% elif task.status == 'completed' %}Успешно
+              {% elif task.status == 'failed' %}Ошибка
+              {% endif %}
+            </span>
+          </td>
+          <td style="padding: 8px;">{{ task.result.minion or '—' }}</td>
+          <td style="padding: 8px;">{{ task.result.state or '—' }}</td>
+          <td style="padding: 8px;">{{ "%.0f"|format(task.started_at) }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p>Нет задач.</p>
+{% endif %}
