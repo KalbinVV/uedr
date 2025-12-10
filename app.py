@@ -5,6 +5,7 @@ import sys
 import uuid
 import atexit
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from datetime import datetime
 
 # Настройка логгера ПОСЛЕ Flask
 app = Flask(__name__)
@@ -200,29 +201,49 @@ def minion_detail(minion_id):
 @app.route('/scripts')
 @login_required
 def scripts():
+    script_name = request.args.get('script')
+    current_content = ""
+
+    if script_name:
+        current_content = script_mgr.get_script_content(script_name)
     script_names = script_mgr.list_scripts()
     minions = salt_mgr.get_all_minions_info() if salt_mgr.is_available() else []
-    return render_template('scripts.html', username=session['username'], scripts=script_names, minions=minions)
+
+    return render_template(
+        'scripts.html',
+        username=session['username'],
+        scripts=script_names,
+        minions=minions,
+        current_script=script_name,
+        current_content=current_content
+    )
 
 
-@app.route('/script/edit', methods=['GET', 'POST'])
-@app.route('/script/edit/<name>', methods=['GET', 'POST'])
+@app.route('/script/edit/<name>', methods=['GET'])
 @login_required
-def edit_script(name=None):
-    if request.method == 'POST':
-        script_name = request.form['name'].strip()
-        content = request.form['content']
-        if not script_name:
-            flash("Имя обязательно.", "error")
-            return render_template('edit_script.html', username=session['username'], name=name, content=content)
-        if script_mgr.save_script(script_name, content):
-            flash(f"Сценарий '{script_name}' сохранён.", "success")
-            return redirect(url_for('scripts'))
-        else:
-            flash("Недопустимое имя.", "error")
-            return render_template('edit_script.html', username=session['username'], name=name, content=content)
+def edit_script(name):
     content = script_mgr.get_script_content(name) if name else ""
-    return render_template('edit_script.html', username=session['username'], name=name, content=content)
+    return jsonify({
+        "name": name,
+        "content": content
+    })
+
+
+@app.route('/api/script/save', methods=['POST'])
+@login_required
+def save_script_api():
+    """API для сохранения сценария через AJAX."""
+    script_name = request.form.get('name', '').strip()
+    content = request.form.get('content', '')
+    if not script_name:
+        return jsonify({"success": False, "error": "Имя обязательно."}), 400
+    if not script_mgr.save_script(script_name, content):
+        return jsonify({"success": False, "error": "Недопустимое имя."}), 400
+    return jsonify({
+        "success": True,
+        "message": f"Сценарий '{script_name}' сохранён.",
+        "script_name": script_name
+    })
 
 
 @app.route('/script/delete/<name>', methods=['POST'])
@@ -448,6 +469,13 @@ def toggle_rule(rule_id):
         flash("Правило не найдено.", "error")
     return redirect(url_for('rules'))
 
+
+@app.template_filter('datetimeformat')
+def datetimeformat(value, format='%Y-%m-%d %H:%M:%S'):
+    """Фильтр для форматирования временных меток."""
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(value).strftime(format)
+    return value
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)

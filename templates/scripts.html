@@ -1,66 +1,222 @@
 <!-- templates/scripts.html -->
 {% extends "base.html" %}
 {% block content %}
-<h2>Сценарии реагирования</h2>
 
-<a href="{{ url_for('edit_script') }}" style="display: inline-block; margin-bottom: 15px; padding: 8px 16px; background: #2a5298; color: white; text-decoration: none; border-radius: 4px;">+ Новый сценарий</a>
+<style>
+  .scripts-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 24px;
+    height: calc(100vh - 120px);
+  }
+  @media (max-width: 900px) {
+    .scripts-layout { grid-template-columns: 1fr; height: auto; }
+    .scripts-list { order: 2; }
+    .scripts-editor { order: 1; }
+  }
+  .scripts-list, .scripts-editor {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    padding: 16px;
+  }
+  .list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .script-item {
+    padding: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.2s;
+  }
+  .script-item:hover { background: var(--gray-light); }
+  .script-item.active {
+    background: rgba(42, 82, 152, 0.1);
+    border-left: 4px solid var(--primary);
+  }
+  .script-name { font-weight: 500; color: var(--primary); }
+  .script-actions button {
+    background: none; border: none; color: var(--gray-dark); cursor: pointer;
+  }
+  #script-editor {
+    width: 100%;
+    height: 200px;
+    padding: 12px;
+    font-family: 'Fira Code', monospace;
+    font-size: 14px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    resize: vertical;
+  }
+  .apply-form-card { margin-top: 24px; }
+  .form-row { display: flex; gap: 12px; margin-bottom: 12px; align-items: end; }
+  .form-row label { width: 80px; font-weight: 500; color: var(--gray-dark); }
+  .form-row select, .form-row input {
+    flex: 1; padding: 8px 12px; border: 1px solid #cbd5e0; border-radius: 6px;
+  }
+  .btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-accent { background: var(--accent); color: white; }
+  .btn-secondary { background: #e2e8f0; color: #4a5568; }
+</style>
 
-{% with messages = get_flashed_messages() %}
-  {% if messages %}
-    {% for msg in messages %}
-      <div style="padding: 10px; margin: 10px 0; background: {% if 'error' in msg %}#ffebee{% else %}#e8f5e9{% endif %}; color: {% if 'error' in msg %}#c62828{% else %}#2e7d32{% endif %}; border-radius: 4px;">
-        {{ msg }}
-      </div>
-    {% endfor %}
-  {% endif %}
-{% endwith %}
-
-{% if scripts %}
-  <table>
-    <thead>
-      <tr>
-        <th>Имя сценария</th>
-        <th>Действия</th>
-      </tr>
-    </thead>
-    <tbody>
+<div class="scripts-layout">
+  <!-- Список -->
+  <div class="scripts-list">
+    <div class="list-header">
+      <h3>Сценарии</h3>
+      <button class="btn btn-primary" onclick="createNewScript()">
+        <i class="fas fa-plus"></i> Новый
+      </button>
+    </div>
+    {% if scripts %}
       {% for name in scripts %}
-        <tr>
-          <td><code>{{ name }}.sls</code></td>
-          <td>
-            <a href="{{ url_for('edit_script', name=name) }}">Редактировать</a> |
-            <form action="{{ url_for('delete_script', name=name) }}" method="post" style="display: inline;" onsubmit="return confirm('Удалить сценарий?')">
-              <button type="submit" style="background: none; border: none; color: #d32f2f; cursor: pointer;">Удалить</button>
-            </form>
-          </td>
-        </tr>
+        <div class="script-item {% if current_script == name %}active{% endif %}" onclick="loadScript('{{ name }}')">
+          <span class="script-name">{{ name }}.sls</span>
+          <div class="script-actions">
+            <button title="Удалить" onclick="deleteScript(event, '{{ name }}')">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </div>
       {% endfor %}
-    </tbody>
-  </table>
+    {% else %}
+      <p style="color: var(--gray-dark);">Нет сценариев</p>
+    {% endif %}
+  </div>
 
-  <h3 style="margin-top: 30px;">Применить сценарий</h3>
-  <form method="post" action="{{ url_for('apply_script') }}">
-    <div style="margin-bottom: 10px;">
-      <label>Миньон:</label>
-      <select name="minion_id" required style="padding: 6px; margin-left: 10px;">
-        {% for m in minions or [] %}
+  <!-- Редактор -->
+  <div class="scripts-editor">
+    <div style="margin-bottom: 12px;">
+      <input type="text" id="script-name" placeholder="Имя сценария"
+             value="{{ current_script or '' }}" style="width: 100%; padding: 8px; font-size: 16px; border: 1px solid #ddd; border-radius: 6px;">
+    </div>
+    <textarea id="script-editor" placeholder="Введите содержимое сценария...">{{ current_content or '' }}</textarea>
+    <div style="margin-top: 12px; display: flex; gap: 10px;">
+      <button class="btn btn-secondary" onclick="window.location.href='{{ url_for('scripts') }}'">
+        <i class="fas fa-arrow-left"></i> Назад
+      </button>
+      <button class="btn btn-primary" onclick="saveScript()">
+        <i class="fas fa-save"></i> Сохранить
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Форма применения -->
+<div class="card apply-form-card">
+  <h3>Применить сценарий</h3>
+  <form id="apply-form">
+    <div class="form-row">
+      <label for="apply-minion">Миньон:</label>
+      <select id="apply-minion" required>
+        <option value="">— Выберите —</option>
+        {% for m in minions %}
           <option value="{{ m.id }}">{{ m.id }}</option>
         {% endfor %}
-        <!-- Если minions не переданы, можно сделать AJAX или отдельную страницу, но для простоты — перезагрузим с миньонами -->
       </select>
     </div>
-    <div style="margin-bottom: 10px;">
-      <label>Сценарий:</label>
-      <select name="script_name" required style="padding: 6px; margin-left: 10px;">
+    <div class="form-row">
+      <label for="apply-script">Сценарий:</label>
+      <select id="apply-script" required>
+        <option value="">— Выберите —</option>
         {% for name in scripts %}
-          <option value="{{ name }}">{{ name }}</option>
+          <option value="{{ name }}">{{ name }}.sls</option>
         {% endfor %}
       </select>
     </div>
-    <button type="submit" style="padding: 8px 16px; background: #2a5298; color: white; border: none; border-radius: 4px;">Применить</button>
+    <button type="submit" class="btn btn-accent" style="width: 100%; margin-top: 12px;">
+      <i class="fas fa-play"></i> Запустить
+    </button>
   </form>
+</div>
 
-{% else %}
-  <p>Нет сохранённых сценариев.</p>
-{% endif %}
+<script>
+  // Автоинициализация при первом открытии
+  document.addEventListener('DOMContentLoaded', function() {
+    const nameEl = document.querySelector('#script-name');
+    if (nameEl && nameEl.value) {
+      const items = document.querySelectorAll('.script-item');
+      items.forEach(item => {
+        if (item.textContent.includes(nameEl.value + '.sls')) {
+          item.classList.add('active');
+        }
+      });
+    }
+  });
+
+  function loadScript(name) {
+    fetch(`/script/edit/${encodeURIComponent(name)}`)
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById('script-name').value = data.name;
+        document.getElementById('script-editor').value = data.content;
+        document.querySelectorAll('.script-item').forEach(el => el.classList.remove('active'));
+        const target = Array.from(document.querySelectorAll('.script-item'))
+          .find(el => el.querySelector('.script-name').innerText === (data.name + '.sls'));
+        if (target) target.classList.add('active');
+      });
+  }
+
+  function saveScript() {
+    const name = document.getElementById('script-name').value.trim();
+    const content = document.getElementById('script-editor').value;
+    if (!name) { alert('Укажите имя'); return; }
+    const fd = new FormData();
+    fd.append('name', name);
+    fd.append('content', content);
+    fetch('/api/script/save', { method: 'POST', body: fd })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          alert(data.message);
+          location.reload(); // Просто перезагружаем, чтобы обновить список и форму
+        } else {
+          alert('Ошибка: ' + data.error);
+        }
+      });
+  }
+
+  function deleteScript(e, name) {
+    e.stopPropagation();
+    if (!confirm(`Удалить "${name}"?`)) return;
+    fetch(`/script/delete/${name}`, { method: 'POST' })
+      .then(() => location.reload());
+  }
+
+  function createNewScript() {
+    document.getElementById('script-name').value = '';
+    document.getElementById('script-editor').value = '';
+    document.querySelectorAll('.script-item').forEach(el => el.classList.remove('active'));
+  }
+
+  // Применение
+  document.getElementById('apply-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const minion = document.getElementById('apply-minion').value;
+    const script = document.getElementById('apply-script').value;
+    if (!minion || !script) { alert('Выберите миньон и сценарий'); return; }
+    fetch('/script/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `minion_id=${encodeURIComponent(minion)}&script_name=${encodeURIComponent(script)}`
+    }).then(() => {
+      alert('Задача запущена. Перейдите в Журнал задач.');
+      document.getElementById('apply-form').reset();
+    });
+  });
+</script>
+
 {% endblock %}

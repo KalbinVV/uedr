@@ -2,23 +2,72 @@
 {% extends "base.html" %}
 {% block content %}
 
-<!-- График инцидентов -->
-<div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 24px;">
-  <h3 style="margin-top: 0; color: #2a5298;">Инциденты за последние 24 часа</h3>
-  <canvas id="incidentChart" height="100"></canvas>
+<!-- Сводные карточки -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 24px;">
+  <!-- Инциденты за 24 часа -->
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Инциденты за 24 ч</h3>
+      <span class="card-subtitle">Последние события</span>
+    </div>
+    <div style="text-align: center; padding: 20px 0;">
+      <div style="font-size: 2.5rem; font-weight: bold; color: var(--primary);">{{ last_incidents|length }}</div>
+      <div style="color: var(--gray-dark);">За последние 24 часа</div>
+    </div>
+  </div>
+
+  <!-- Миньоны -->
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Миньоны</h3>
+      <span class="card-subtitle">Активные узлы</span>
+    </div>
+    <div style="text-align: center; padding: 20px 0;">
+      <div style="font-size: 2.5rem; font-weight: bold; color: var(--secondary);">
+        {% if minions %}{{ minions|length }}{% else %}0{% endif %}
+      </div>
+      <div style="color: var(--gray-dark);">В сети</div>
+    </div>
+  </div>
+
+  <!-- Задачи -->
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Задачи</h3>
+      <span class="card-subtitle">Последние операции</span>
+    </div>
+    <div style="text-align: center; padding: 20px 0;">
+      <div style="font-size: 2.5rem; font-weight: bold; color: var(--accent);">
+        {% if last_tasks %}{{ last_tasks|length }}{% else %}0{% endif %}
+      </div>
+      <div style="color: var(--gray-dark);">Завершено</div>
+    </div>
+  </div>
 </div>
 
 <!-- Последние инциденты -->
-<div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 24px;">
-  <h3 style="margin-top: 0; color: #2a5298;">Последние инциденты</h3>
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Последние инциденты</h3>
+    <div class="card-actions">
+      <a href="{{ url_for('incidents') }}"><i class="fas fa-eye"></i> Все</a>
+      <button><i class="fas fa-sync-alt"></i></button>
+    </div>
+  </div>
   <div id="last-incidents-table">
     {% include 'dashboard_incidents_table.html' %}
   </div>
 </div>
 
 <!-- Последние задачи -->
-<div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-  <h3 style="margin-top: 0; color: #2a5298;">Последние задачи</h3>
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Последние задачи</h3>
+    <div class="card-actions">
+      <a href="{{ url_for('tasks') }}"><i class="fas fa-eye"></i> Все</a>
+      <button><i class="fas fa-sync-alt"></i></button>
+    </div>
+  </div>
   <div id="last-tasks-table">
     {% include 'dashboard_tasks_table.html' %}
   </div>
@@ -26,21 +75,21 @@
 
 <!-- Карточки миньонов -->
 {% if minions %}
-  <h2 style="margin: 32px 0 16px; color: #2a5298;">Миньоны</h2>
+  <h2 style="margin: 32px 0 16px; color: var(--primary);">Миньоны</h2>
   <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
     {% for m in minions %}
       <a href="{{ url_for('minion_detail', minion_id=m.id) }}" style="text-decoration: none; color: inherit;">
-        <div style="background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 20px; transition: transform 0.2s;">
+        <div class="card" style="padding: 20px; text-align: center;">
           <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
             <div>
-              <h3 style="margin: 0; font-size: 18px; color: #2a5298;">{{ m.id }}</h3>
-              <div style="font-size: 14px; color: #666; margin-top: 4px;">{{ m.os }} {{ m.os_version }}</div>
+              <h3 style="margin: 0; font-size: 18px; color: var(--primary);">{{ m.id }}</h3>
+              <div style="font-size: 14px; color: var(--gray-dark); margin-top: 4px;">{{ m.os }} {{ m.os_version }}</div>
             </div>
             <span style="padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; {% if m.is_online %}background: #e8f5e9; color: #2e7d32;{% else %}background: #ffeaea; color: #d32f2f;{% endif %}">
               {{ "онлайн" if m.is_online else "оффлайн" }}
             </span>
           </div>
-          <div style="font-size: 14px; color: #555; line-height: 1.5;">
+          <div style="font-size: 14px; color: var(--gray-dark); line-height: 1.5;">
             <div><strong>IP:</strong> {{ m.ip or '—' }}</div>
             <div><strong>Ядро:</strong> {{ m.kernel or '—' }}</div>
           </div>
@@ -51,86 +100,19 @@
 {% endif %}
 
 <script>
-  let chart = null;
-
-  function initChart(data) {
-    const ctx = document.getElementById('incidentChart').getContext('2d');
-    const now = new Date();
-    const labels = [];
-    for (let i = 23; i >= 0; i--) {
-      const date = new Date(now.getTime() - i * 60 * 60 * 1000);
-      labels.push(date.getHours() + ':00');
-    }
-
-    if (chart) {
-      chart.destroy();
-    }
-
-    chart = new Chart(ctx, {
-      type: 'bar',
-       {
-        labels: labels,
-        datasets: [{
-          label: 'Инциденты',
-          data: data,  // ← теперь точно массив
-          backgroundColor: '#2a5298',
-          borderColor: '#1a3a70',
-          borderWidth: 1
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: { stepSize: 1 }
-          }
-        },
-        plugins: {
-          legend: { display: false }
-        }
-      }
-    });
-  }
-
-  async function fetchInitialData() {
+  async function updateDashboardTables() {
     try {
-      const response = await fetch('/api/dashboard-data');
-      const data = await response.json();
-      initChart(data.chart_data);
-      return data;
-    } catch (error) {
-      console.error('Ошибка при загрузке данных:', error);
-      return null;
-    }
-  }
-
-  async function updateDashboard() {
-    try {
-      const response = await fetch('/api/dashboard-data');
-      const data = await response.json();
-
-      chart.data.datasets[0].data = data.chart_data;
-      chart.update();
-
       const incidentsHtml = await fetch('/api/dashboard-incidents-html').then(r => r.text());
       const tasksHtml = await fetch('/api/dashboard-tasks-html').then(r => r.text());
-
       document.getElementById('last-incidents-table').innerHTML = incidentsHtml;
       document.getElementById('last-tasks-table').innerHTML = tasksHtml;
-
     } catch (error) {
-      console.error('Ошибка при автообновлении:', error);
+      console.error('Ошибка при автообновлении таблиц:', error);
     }
   }
 
-  // Инициализация с безопасным JSON
-  initChart({{ chart_data | tojson }});
-  setTimeout(() => {
-    updateDashboard();
-    setInterval(updateDashboard, 2000);
-  }, 2000);
+  // Автообновление каждые 5 секунд
+  setInterval(updateDashboardTables, 5000);
 </script>
 
 {% endblock %}
