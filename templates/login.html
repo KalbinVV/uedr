@@ -5,86 +5,215 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UEDR — Вход</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+
         body {
-            background: linear-gradient(135deg, #1a2a6c, #2a5298);
+            background: linear-gradient(135deg, #f0f4f8, #e2e8f0);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            position: relative;
+            overflow: hidden;
         }
+
+        /* Фоновая волна (аналогично скриншоту) */
+        .bg-wave {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjBmNGY4Ii8+CjxwYXRoIGQ9Ik0wLDUwIEwxMDAsNTAgTDEwMCwxMDAgTDAsMTAwIFowIiBmaWxsPSIjZDJlOGYwIi8+CjxwYXRoIGQ9Ik0wLDUwIEwxMDAsNTAgTDEwMCwwIEwwLDAgWjAiIGZpbGw9IiNmMGY0ZjgiLz4KPC9zdmc+') repeat-x;
+            opacity: 0.3;
+            z-index: -1;
+        }
+
         .login-container {
             background: white;
-            padding: 2.5rem;
+            padding: 3rem;
             border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             width: 100%;
             max-width: 400px;
-        }
-        .login-container h2 {
             text-align: center;
-            margin-bottom: 1.5rem;
+            position: relative;
+        }
+
+        .login-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 2rem;
+        }
+
+        .login-header .logo {
+            width: 100px;
+            height: 40px;
+            background: #2a5298;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .login-header h2 {
             color: #2a5298;
+            font-size: 1.5rem;
+            font-weight: 600;
         }
+
         .form-group {
-            margin-bottom: 1rem;
+            margin-bottom: 1.5rem;
+            position: relative;
         }
+
         .form-group label {
             display: block;
             margin-bottom: 0.5rem;
-            font-weight: 600;
-            color: #333;
+            font-weight: 500;
+            color: #374151;
         }
-        .form-group input {
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #ccc;
-            border-radius: 6px;
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            border: 1px solid #cbd5e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .input-wrapper i {
+            padding: 0.75rem 1rem;
+            color: #6b7280;
+            background: #f3f4f6;
+            border-right: 1px solid #e5e7eb;
+        }
+
+        .input-wrapper input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: none;
+            outline: none;
             font-size: 1rem;
         }
-        .btn {
+
+        .remember-me {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            color: #4b5563;
+        }
+
+        .remember-me input[type="checkbox"] {
+            accent-color: #2a5298;
+        }
+
+        .btn-login {
             width: 100%;
             padding: 0.75rem;
             background: #2a5298;
             color: white;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             font-size: 1rem;
+            font-weight: 600;
             cursor: pointer;
             transition: background 0.2s;
         }
-        .btn:hover {
+
+        .btn-login:hover {
             background: #1a3a70;
         }
-        .error {
-            color: #d32f2f;
-            text-align: center;
+
+        .error-message {
+            color: #dc2626;
+            background: #fee2e2;
+            padding: 0.5rem;
+            border-radius: 6px;
             margin-top: 1rem;
-            font-size: 0.9rem;
+            font-size: 0.875rem;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
         }
     </style>
 </head>
 <body>
+    <div class="bg-wave"></div>
+
     <div class="login-container">
-        <h2>UEDR — Вход</h2>
-        <form method="POST" action="/">
+        <div class="login-header">
+            <div class="logo">UEDR</div>
+            <h2>Вход в систему</h2>
+        </div>
+
+        <form method="POST" action="/" id="login-form">
             <div class="form-group">
-                <label for="username">Имя пользователя</label>
-                <input type="text" id="username" name="username" required>
+                <label for="username">Логин</label>
+                <div class="input-wrapper">
+                    <i class="fas fa-user"></i>
+                    <input type="text" id="username" name="username" required placeholder="Введите логин">
+                </div>
             </div>
+
             <div class="form-group">
                 <label for="password">Пароль</label>
-                <input type="password" id="password" name="password" required>
+                <div class="input-wrapper">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="password" name="password" required placeholder="Введите пароль">
+                </div>
             </div>
-            <button type="submit" class="btn">Войти</button>
+
+            <div class="remember-me">
+                <input type="checkbox" id="remember" name="remember">
+                <label for="remember">Запомнить меня</label>
+            </div>
+
+            <button type="submit" class="btn-login">Войти</button>
         </form>
 
-        {% with messages = get_flashed_messages(category_filter=["error"]) %}
-            {% if messages %}
-                <div class="error">{{ messages[0] }}</div>
-            {% endif %}
-        {% endwith %}
+        <!-- Сообщение об ошибке -->
+        <div class="error-message" id="error-message">
+            Неверные данные. Попробуйте снова.
+        </div>
     </div>
+
+    <script>
+        // Показываем сообщение об ошибке, если есть
+        document.addEventListener('DOMContentLoaded', function() {
+            {% with messages = get_flashed_messages(category_filter=["error"]) %}
+                {% if messages %}
+                    const errorMsg = document.getElementById('error-message');
+                    errorMsg.textContent = "{{ messages[0] }}";
+                    errorMsg.classList.add('show');
+                {% endif %}
+            {% endwith %}
+
+            // Фокус на поле логина при загрузке
+            document.getElementById('username').focus();
+        });
+
+        // Убираем сообщение об ошибке при вводе
+        document.getElementById('login-form').addEventListener('input', function() {
+            const errorMsg = document.getElementById('error-message');
+            errorMsg.classList.remove('show');
+        });
+    </script>
 </body>
 </html>

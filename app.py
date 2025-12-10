@@ -1,4 +1,5 @@
 # app.py
+import json
 import os
 import logging
 import sys
@@ -392,12 +393,72 @@ def incident_config_view():
                            custom_fields=custom_fields)
 
 
+@app.route('/incident-config/export')
+@login_required
+def export_incident_config():
+    """Экспорт конфигурации в JSON-файл."""
+    config = incident_config.get_all_fields()
+    return jsonify(config), 200, {
+        'Content-Disposition': 'attachment; filename=uedr_incident_config.json',
+        'Content-Type': 'application/json; charset=utf-8'
+    }
+
+
+@app.route('/incident-config/import', methods=['POST'])
+@login_required
+def import_incident_config():
+    """Импорт конфигурации из загруженного JSON-файла."""
+    if 'config_file' not in request.files:
+        flash("Файл не выбран.", "error")
+        return redirect(url_for('incident_config_view'))
+
+    file = request.files['config_file']
+    if not file.filename.endswith('.json'):
+        flash("Разрешены только .json файлы.", "error")
+        return redirect(url_for('incident_config_view'))
+
+    try:
+        content = file.read().decode('utf-8')
+        config = json.loads(content)
+    except Exception as e:
+        flash(f"Ошибка чтения файла: {e}", "error")
+        return redirect(url_for('incident_config_view'))
+
+    # Валидация структуры
+    if not isinstance(config, list):
+        flash("Неверный формат: ожидается список полей.", "error")
+        return redirect(url_for('incident_config_view'))
+
+    for field in config:
+        if not all(k in field for k in ("display_name", "field_key", "json_path")):
+            flash("Неверный формат поля: должно содержать display_name, field_key, json_path.", "error")
+            return redirect(url_for('incident_config_view'))
+
+    # Сохраняем
+    if incident_config.save_fields(config):
+        flash("Конфигурация успешно импортирована.", "success")
+    else:
+        flash("Ошибка сохранения конфигурации.", "error")
+
+    return redirect(url_for('incident_config_view'))
+
+
 @app.route('/rules')
 @login_required
 def rules():
     rules_list = db.get_all_rules()
     scripts = script_mgr.list_scripts()
     return render_template('rules.html', username=session['username'], rules=rules_list, scripts=scripts)
+
+
+@app.route('/api/rule/<int:rule_id>')
+@login_required
+def api_get_rule(rule_id):
+    rules = db.get_all_rules()
+    rule = next((r for r in rules if r["id"] == rule_id), None)
+    if not rule:
+        return jsonify({"error": "Rule not found"}), 404
+    return jsonify(rule)
 
 
 @app.route('/rule/edit', methods=['GET', 'POST'])

@@ -1,74 +1,294 @@
 <!-- templates/incident_config.html -->
 {% extends "base.html" %}
+{% block title %}UEDR - Конфигурация{% endblock %}
+
 {% block content %}
-<h2>Конфигурация полей инцидентов</h2>
+<style>
+  .config-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .config-header h1 {
+    font-size: 28px;
+    color: var(--primary);
+    font-weight: 700;
+  }
+  .io-section {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .io-section h3 {
+    margin-top: 0;
+    color: var(--primary);
+    margin-bottom: 16px;
+  }
+  .io-buttons {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.2s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-primary {
+    background: var(--primary);
+    color: white;
+  }
+  .btn-secondary {
+    background: #e2e8f0;
+    color: #4a5568;
+  }
+  .btn-success {
+    background: #dcfce7;
+    color: #16a34a;
+  }
+  .btn:hover {
+    opacity: 0.9;
+  }
+  .file-input-wrapper {
+    display: flex;
+    gap: 12px;
+    align-items: end;
+  }
+  .file-input-wrapper input[type="file"] {
+    padding: 6px 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  .form-section {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .form-section h3 {
+    margin-top: 0;
+    color: var(--primary);
+    margin-bottom: 16px;
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 768px) {
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .form-group {
+    margin-bottom: 16px;
+  }
+  .form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+    color: #374151;
+  }
+  .form-control {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 8px;
+    font-size: 15px;
+  }
+  .badge-required {
+    background: #fee2e2;
+    color: #dc2626;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .fields-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 16px;
+  }
+  .field-card {
+    background: #f9fafb;
+    padding: 16px;
+    border-radius: 10px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 12px;
+    align-items: end;
+  }
+  .field-card input {
+    padding: 8px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  .field-actions button {
+    background: #ef4444;
+    color: white;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  .add-field-btn {
+    background: #dbeafe;
+    color: var(--primary);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .submit-section {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+  }
+  .help-text {
+    color: #64748b;
+    font-size: 14px;
+    margin-top: 4px;
+  }
+</style>
 
+<div class="config-header">
+  <h1>Конфигурация полей инцидентов</h1>
+</div>
+
+<!-- Импорт / Экспорт -->
+<div class="io-section">
+  <h3>Резервное копирование</h3>
+  <div class="io-buttons">
+    <a href="{{ url_for('export_incident_config') }}" class="btn btn-success">
+      <i class="fas fa-file-export"></i> Экспорт в JSON
+    </a>
+    <form method="post" action="{{ url_for('import_incident_config') }}" enctype="multipart/form-data" class="file-input-wrapper">
+      <input type="file" name="config_file" accept=".json" required>
+      <button type="submit" class="btn btn-primary">
+        <i class="fas fa-file-import"></i> Импорт из JSON
+      </button>
+    </form>
+  </div>
+  <p class="help-text" style="margin-top: 12px;">
+    Используйте эти функции для переноса конфигурации между системами или создания резервной копии.
+  </p>
+</div>
+
+<!-- Основная форма -->
 <form method="post" id="config-form">
-  <!-- === ОБЯЗАТЕЛЬНЫЕ ПОЛЯ: ИСТОЧНИК === -->
-  <div style="background: #f0f7ff; padding: 16px; border-radius: 8px; margin-bottom: 24px; border-left: 4px solid #2a5298;">
-    <h3 style="margin-top: 0; color: #2a5298;">Источник инцидента (обязательно)</h3>
-    <p style="margin-bottom: 12px; font-size: 14px; color: #555;">
-      Укажите <strong>хотя бы одно</strong> из полей: IP-адрес источника или его hostname.
-      Система будет использовать их для привязки инцидента к миньону.
+  <!-- Обязательные поля -->
+  <div class="form-section">
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
+      <h3>Источник инцидента</h3>
+      <span class="badge-required">Обязательно</span>
+    </div>
+    <p class="help-text">
+      Укажите <strong>хотя бы одно</strong> из полей: IP-адрес или hostname источника.
     </p>
-
-    <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; margin-bottom: 12px;">
-      <div>
-        <label style="font-size: 13px; color: #4a5568;">IP-адрес источника</label>
-        <input type="text" name="src_ip_path" value="{{ src_ip_path or '' }}"
-               placeholder="event_src.ip" style="width: 100%; padding: 8px; margin-top: 4px;">
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="src_ip_path">IP-адрес источника</label>
+        <input type="text" id="src_ip_path" name="src_ip_path" value="{{ src_ip_path or '' }}"
+               class="form-control" placeholder="event_src.ip">
       </div>
-      <div>
-        <label style="font-size: 13px; color: #4a5568;">Hostname источника</label>
-        <input type="text" name="src_hostname_path" value="{{ src_hostname_path or '' }}"
-               placeholder="agent.hostname" style="width: 100%; padding: 8px; margin-top: 4px;">
-      </div>
-      <div style="align-self: end; padding-top: 22px;">
-        <span style="background: #e8f5e9; color: #2e7d32; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
-          Обязательно
-        </span>
+      <div class="form-group">
+        <label for="src_hostname_path">Hostname источника</label>
+        <input type="text" id="src_hostname_path" name="src_hostname_path" value="{{ src_hostname_path or '' }}"
+               class="form-control" placeholder="agent.hostname">
       </div>
     </div>
   </div>
 
-  <!-- === ДРУГИЕ ПОЛЯ === -->
-  <h3>Дополнительные поля (опционально)</h3>
-  <div id="fields-container" style="display: grid; gap: 16px; max-width: 650px; margin-bottom: 20px;">
-    {% if custom_fields %}
-      {% for field in custom_fields %}
-      <div class="field-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; align-items: end;">
-        <input type="text" name="display_name_{{ loop.index0 }}" value="{{ field.display_name }}" placeholder="Отображаемое имя" style="padding: 8px;" required>
-        <input type="text" name="field_key_{{ loop.index0 }}" value="{{ field.field_key }}" placeholder="Ключ (латиница)" style="padding: 8px;" required>
-        <input type="text" name="json_path_{{ loop.index0 }}" value="{{ field.json_path }}" placeholder="JSON-путь (a.b.c)" style="padding: 8px;" required>
-        <button type="button" onclick="this.closest('.field-row').remove()" style="padding: 8px; background: #e53e3e; color: white; border: none; border-radius: 4px; cursor: pointer;">×</button>
-      </div>
-      {% endfor %}
-    {% endif %}
+  <!-- Дополнительные поля -->
+  <div class="form-section">
+    <h3>Дополнительные поля</h3>
+    <p class="help-text">
+      Добавьте любые поля из вашего JSON-инцидента.
+    </p>
+    <div class="fields-list" id="fields-container">
+      {% if custom_fields %}
+        {% for field in custom_fields %}
+        <div class="field-card">
+          <input type="text" name="display_name_{{ loop.index0 }}" value="{{ field.display_name }}"
+                 placeholder="Отображаемое имя" required>
+          <input type="text" name="field_key_{{ loop.index0 }}" value="{{ field.field_key }}"
+                 placeholder="Ключ (латиница)" required>
+          <input type="text" name="json_path_{{ loop.index0 }}" value="{{ field.json_path }}"
+                 placeholder="JSON-путь (a.b.c)" required>
+          <div class="field-actions">
+            <button type="button" onclick="this.closest('.field-card').remove()">×</button>
+          </div>
+        </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+    <button type="button" class="add-field-btn" onclick="addField()">
+      <i class="fas fa-plus"></i> Добавить поле
+    </button>
   </div>
 
-  <button type="button" onclick="addRow()" style="margin: 10px 0 16px; padding: 8px 16px; background: #3182ce; color: white; border: none; border-radius: 4px;">+ Добавить поле</button>
-  <button type="submit" style="padding: 10px 20px; background: #2a5298; color: white; border: none; border-radius: 4px;">Сохранить</button>
+  <!-- Кнопки сохранения -->
+  <div class="submit-section">
+    <a href="{{ url_for('incidents') }}" class="btn btn-secondary">
+      <i class="fas fa-arrow-left"></i> Отмена
+    </a>
+    <button type="submit" class="btn btn-primary">
+      <i class="fas fa-save"></i> Сохранить конфигурацию
+    </button>
+  </div>
 </form>
 
 <script>
-function addRow() {
-  const container = document.getElementById('fields-container');
-  const index = container.children.length;
-  const div = document.createElement('div');
-  div.className = 'field-row';
-  div.style.display = 'grid';
-  div.style.gridTemplateColumns = '1fr 1fr 1fr auto';
-  div.style.gap = '8px';
-  div.style.alignItems = 'end';
-  div.innerHTML = `
-    <input type="text" name="display_name_${index}" placeholder="Отображаемое имя" style="padding: 8px;" required>
-    <input type="text" name="field_key_${index}" placeholder="Ключ (латиница)" style="padding: 8px;" required>
-    <input type="text" name="json_path_${index}" placeholder="JSON-путь (a.b.c)" style="padding: 8px;" required>
-    <button type="button" onclick="this.closest('.field-row').remove()" style="padding: 8px; background: #e53e3e; color: white; border: none; border-radius: 4px; cursor: pointer;">×</button>
-  `;
-  container.appendChild(div);
-}
+  function addField() {
+    const container = document.getElementById('fields-container');
+    const index = container.children.length;
+    const div = document.createElement('div');
+    div.className = 'field-card';
+    div.innerHTML = `
+      <input type="text" name="display_name_${index}" placeholder="Отображаемое имя" required>
+      <input type="text" name="field_key_${index}" placeholder="Ключ (латиница)" required>
+      <input type="text" name="json_path_${index}" placeholder="JSON-путь (a.b.c)" required>
+      <div class="field-actions">
+        <button type="button" onclick="this.closest('.field-card').remove()">×</button>
+      </div>
+    `;
+    container.appendChild(div);
+  }
+
+  // Валидация формы
+  document.getElementById('config-form').addEventListener('submit', function(e) {
+    const srcIp = document.getElementById('src_ip_path').value.trim();
+    const srcHost = document.getElementById('src_hostname_path').value.trim();
+    if (!srcIp && !srcHost) {
+      e.preventDefault();
+      alert('Укажите хотя бы одно поле: IP-адрес или hostname источника.');
+      return false;
+    }
+  });
 </script>
 
-<a href="{{ url_for('incidents') }}" style="display: inline-block; margin-top: 20px; color: #2a5298;">← Назад к инцидентам</a>
 {% endblock %}
