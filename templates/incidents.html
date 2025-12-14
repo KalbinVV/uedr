@@ -1,42 +1,152 @@
 <!-- templates/incidents.html -->
 {% extends "base.html" %}
+{% block title %}UEDR — Инциденты{% endblock %}
 {% block content %}
-<h2>Инциденты</h2>
+<style>
+  .incidents-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .incidents-header h1 {
+    font-size: 28px;
+    color: var(--primary);
+    font-weight: 700;
+  }
+  .incidents-actions {
+    display: flex;
+    gap: 12px;
+  }
+  .incident-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+    margin-top: 10px;
+  }
+  .incident-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    padding: 20px;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+    position: relative;
+    border-left: 4px solid var(--primary);
+  }
+  .incident-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+  }
+  .incident-card h3 {
+    font-size: 16px;
+    margin: 0 0 12px 0;
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .incident-card h3 i {
+    font-size: 18px;
+  }
+  .incident-field {
+    display: flex;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+  .incident-field-key {
+    font-weight: 600;
+    color: var(--gray-dark);
+    min-width: 110px;
+    margin-right: 8px;
+  }
+  .incident-field-value {
+    word-break: break-word;
+    color: var(--dark);
+  }
+  .incident-minion {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--gray-light);
+    font-size: 13px;
+  }
+  .incident-minion a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .incident-minion a:hover {
+    text-decoration: underline;
+  }
+  .no-incidents {
+    text-align: center;
+    padding: 40px;
+    color: var(--gray-dark);
+    font-size: 16px;
+  }
+  .no-config-warning {
+    background: #fff8e1;
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 24px;
+    border-left: 4px solid #ffc107;
+    font-size: 14px;
+    color: #5f4b00;
+  }
+  .no-config-warning a {
+    color: var(--primary);
+    font-weight: 600;
+    text-decoration: underline;
+  }
+</style>
+
+<div class="incidents-header">
+  <h1>Инциденты</h1>
+  <div class="incidents-actions">
+    {% if fields %}
+      <a href="{{ url_for('incident_config_view') }}" class="btn btn-secondary">
+        <i class="fas fa-cog"></i> Конфигурация
+      </a>
+    {% endif %}
+  </div>
+</div>
 
 {% if not fields %}
-  <p style="color: #e53e3e;">⚠️ Нет настроенных полей. Перейдите в <a href="{{ url_for('incident_config_view') }}">Конфигурацию инцидентов</a>.</p>
-{% elif incidents %}
-  <div style="overflow-x: auto;">
-    <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px;">
-      <thead>
-        <tr style="background: #2a5298; color: white;">
-          <th style="padding: 12px; text-align: left;">Миньон</th>
-          {% for field in fields %}
-            <th style="padding: 12px; text-align: left;">{{ field.display_name }}</th>
-          {% endfor %}
-        </tr>
-      </thead>
-      <tbody>
-        {% for inc in incidents %}
-          <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 12px;">
-              {% if inc.minion_id %}
-                <a href="{{ url_for('minion_detail', minion_id=inc.minion_id) }}" style="color: #2a5298; text-decoration: underline;">
-                  {{ inc.minion_id }}
-                </a>
-              {% else %}
-                —
-              {% endif %}
-            </td>
-            {% for field in fields %}
-              <td style="padding: 12px;">{{ inc.get(field.field_key, '—') }}</td>
-            {% endfor %}
-          </tr>
+  <div class="no-config-warning">
+    ⚠️ Нет настроенных полей. Перейдите в <a href="{{ url_for('incident_config_view') }}">Конфигурацию инцидентов</a>, чтобы задать структуру данных.
+  </div>
+{% endif %}
+
+{% if incidents %}
+  <div class="incident-grid">
+    {% for inc in incidents %}
+      <div class="incident-card" onclick="window.open('{{ url_for('incident_detail', incident_id=inc.id) }}', '_blank')">
+        <h3><i class="fas fa-exclamation-triangle"></i> Инцидент #{{ inc.id }}</h3>
+        {% for field in fields %}
+          <div class="incident-field">
+            <div class="incident-field-key">{{ field.display_name }}:</div>
+            <div class="incident-field-value">{{ inc.get(field.field_key, '—') }}</div>
+          </div>
         {% endfor %}
-      </tbody>
-    </table>
+        <div class="incident-minion">
+          {% if inc.minion_id %}
+            Миньон: <a href="{{ url_for('minion_detail', minion_id=inc.minion_id) }}" target="_blank">{{ inc.minion_id }}</a>
+          {% else %}
+            Миньон: —
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
   </div>
 {% else %}
-  <p>Нет инцидентов.</p>
+  <div class="no-incidents">
+    {% if fields %}
+      Нет инцидентов.
+    {% else %}
+      Настройте поля инцидентов, чтобы начать получать данные.
+    {% endif %}
+  </div>
 {% endif %}
 {% endblock %}

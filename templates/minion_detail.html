@@ -1,137 +1,453 @@
 <!-- templates/minion_detail.html -->
 {% extends "base.html" %}
+{% block title %}UEDR — Миньон {{ minion.id }}{% endblock %}
 {% block content %}
-<h2>Миньон: {{ minion.id }}</h2>
+<style>
+  .minion-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .minion-title {
+    font-size: 26px;
+    color: var(--primary);
+    font-weight: 700;
+  }
+  .minion-status-tag {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .status-online { background: #e8f5e9; color: #2e7d32; }
+  .status-offline { background: #ffeaea; color: #d32f2f; }
+  .accordion {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .accordion-header {
+    padding: 16px 20px;
+    background: #f8fafc;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    color: var(--primary);
+    border-bottom: 1px solid var(--gray-light);
+    transition: background 0.2s;
+  }
+  .accordion-header:hover {
+    background: #edf2f7;
+  }
+  .accordion-header i {
+    transition: transform 0.2s;
+  }
+  .accordion-body {
+    padding: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+  }
+  .accordion-body.expanded {
+    padding: 20px;
+    max-height: 1000px;
+  }
+  .detail-row {
+    display: flex;
+    margin-bottom: 10px;
+    font-size: 14px;
+  }
+  .detail-label {
+    min-width: 160px;
+    font-weight: 600;
+    color: var(--gray-dark);
+  }
+  .detail-value {
+    flex: 1;
+    word-break: break-word;
+  }
+  .no-data {
+    color: var(--gray-dark);
+    font-style: italic;
+  }
 
-{% if not minion.is_online %}
-  <div style="background: #ffeaea; color: #c6282f; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
-    ⚠️ Миньон в оффлайне. Невозможно получить данные.
+  .actions-bar {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .btn-apply {
+    padding: 10px 20px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 2000;
+    justify-content: center;
+    align-items: center;
+  }
+  .modal-content {
+    background: white;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 500px;
+    padding: 24px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .modal-header h3 {
+    margin: 0;
+    color: var(--primary);
+  }
+  .close-modal {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--gray-dark);
+  }
+  .form-group {
+    margin-bottom: 16px;
+  }
+  .form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+  .form-control {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--gray-light);
+    border-radius: 6px;
+    font-size: 15px;
+  }
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 20px;
+  }
+  .btn-cancel {
+    background: var(--gray-light);
+    color: var(--dark);
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .btn-submit {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .incidents-section {
+    margin-top: 32px;
+  }
+  .incidents-section h3 {
+    margin-bottom: 16px;
+    color: var(--primary);
+    font-size: 18px;
+  }
+  .no-incidents {
+    padding: 16px;
+    color: var(--gray-dark);
+    font-style: italic;
+  }
+</style>
+
+<div class="minion-topbar">
+  <div class="minion-title">{{ minion.id }}</div>
+  <div class="minion-status-tag {{ 'status-online' if minion.is_online else 'status-offline' }}">
+    {{ "онлайн" if minion.is_online else "оффлайн" }}
   </div>
-  <a href="{{ url_for('dashboard') }}" style="color: #2a5298;">← Назад к дашборду</a>
-{% else %}
-  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
-    <!-- Системная информация -->
-    <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-      <h3 style="margin-top: 0; color: #2a5298;">Система</h3>
-      <div style="font-size: 14px; line-height: 1.6;">
-        <div><strong>ОС:</strong> {{ minion.grains.get('os', '—') }} {{ minion.grains.get('osrelease', '') }}</div>
-        <div><strong>Ядро:</strong> {{ minion.grains.get('kernel', '—') }} {{ minion.grains.get('kernelrelease', '') }}</div>
-        <div><strong>Архитектура:</strong> {{ minion.grains.get('cpuarch', '—') }}</div>
-        <div><strong>Хостнейм:</strong> {{ minion.grains.get('host', '—') }}</div>
-        <div><strong>Время:</strong> {{ minion.grains.get('time', '—') }}</div>
+</div>
+
+{% if minion.is_online %}
+  <div class="actions-bar">
+    <button class="btn-apply" onclick="openApplyScriptModal()">
+      <i class="fas fa-play"></i> Применить сценарий
+    </button>
+  </div>
+
+  <!-- Модальное окно -->
+  <div id="applyScriptModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Применить сценарий к {{ minion.id }}</h3>
+        <button class="close-modal" onclick="closeApplyScriptModal()">&times;</button>
+      </div>
+      <form id="applyScriptForm" method="POST" action="{{ url_for('apply_script') }}">
+        <input type="hidden" name="minion_id" value="{{ minion.id }}">
+        <div class="form-group">
+          <label for="scriptSelect">Сценарий:</label>
+          <select name="script_name" id="scriptSelect" class="form-control" required>
+            <option value="">— Выберите сценарий —</option>
+            {% for s in scripts %}
+              <option value="{{ s }}">{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-cancel" onclick="closeApplyScriptModal()">Отмена</button>
+          <button type="submit" class="btn-submit">Запустить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Общая информация -->
+  <div class="accordion">
+    <div class="accordion-header" onclick="toggleAccordion(this)">
+      <span><i class="fas fa-info-circle"></i> Общая информация</span>
+      <i class="fas fa-chevron-down"></i>
+    </div>
+    <div class="accordion-body">
+      <div class="detail-row">
+        <div class="detail-label">Salt ID:</div>
+        <div class="detail-value">{{ minion.id }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Hostname:</div>
+        <div class="detail-value">{{ minion.grains.get('nodename') or minion.grains.get('host') or '—' }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">ОС:</div>
+        <div class="detail-value">{{ minion.grains.get('os') or '—' }} {{ minion.grains.get('osrelease') or '' }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Ядро:</div>
+        <div class="detail-value">{{ minion.grains.get('kernelrelease') or '—' }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Архитектура:</div>
+        <div class="detail-value">{{ minion.grains.get('cpuarch') or '—' }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Время загрузки:</div>
+        <div class="detail-value">{{ minion.get('boot_time_str', '—') }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Uptime:</div>
+        <div class="detail-value">{{ minion.get('uptime_str', '—') }}</div>
       </div>
     </div>
+  </div>
 
-    <!-- Сеть -->
-    <div style="background: white; padding: 20px;;border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-      <h3 style="margin-top: 0; color: #2a5298;">Сеть</h3>
-      <div style="font-size: 14px; line-height: 1.6;">
-        {% if minion.ipv4_all %}
-          <div><strong>IPv4:</strong> {{ minion.ipv4_all | join(', ') }}</div>
-        {% else %}
-          <div><strong>IPv4:</strong> —</div>
-        {% endif %}
-        <div><strong>MAC:</strong> {{ minion.grains.get('hwaddr_interfaces', {}) | pprint | truncate(100) }}</div>
-      </div>
+  <!-- Сеть -->
+  <div class="accordion">
+    <div class="accordion-header" onclick="toggleAccordion(this)">
+      <span><i class="fas fa-network-wired"></i> Сеть</span>
+      <i class="fas fa-chevron-down"></i>
     </div>
-
-    <!-- Память -->
-    <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-      <h3 style="margin-top: 0; color: #2a5298;">Память</h3>
-      {% set mem = minion.mem_info %}
-      {% if mem %}
-        {% set total = mem.get('MemTotal', {}).get('value') | int %}
-        {% set free = mem.get('MemFree', {}).get('value') | int %}
-        {% if total > 0 %}
-          {% set used = total - free %}
-          {% set percent = (used / total * 100) | round(1) %}
-          <div>Всего: {{ (total / 1024) | round }} MB</div>
-          <div>Свободно: {{ (free / 1024) | round }} MB</div>
-          <div style="margin-top: 8px;">
-            <div style="height: 10px; background: #e0e0e0; border-radius: 5px; overflow: hidden;">
-              <div style="height: 100%; width: {{ percent }}%; background: #4caf50;"></div>
+    <div class="accordion-body">
+      {% if minion.ipv4_all %}
+        <div class="detail-row">
+          <div class="detail-label">IPv4:</div>
+          <div class="detail-value">{{ minion.ipv4_all | join(', ') }}</div>
+        </div>
+      {% endif %}
+      {% if minion.interfaces %}
+        {% for iface, info in minion.interfaces.items() %}
+          {% if info.get('inet') %}
+            <div class="detail-row">
+              <div class="detail-label">{{ iface }}:</div>
+              <div class="detail-value">
+                {{ info.inet | map(attribute='address') | join(', ') }}
+              </div>
             </div>
-            <div style="font-size: 13px; margin-top: 4px;">Использовано: {{ percent }}%</div>
-          </div>
-        {% endif %}
-      {% else %}
-        —
+          {% endif %}
+        {% endfor %}
       {% endif %}
     </div>
+  </div>
 
-    <!-- Диск -->
-    <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-      <h3 style="margin-top: 0; color: #2a5298;">Диск</h3>
-      <div style="font-size: 14px;">
-        {% for mount, info in minion.disk_usage.items() %}
-          <div style="margin-bottom: 12px;">
-            <div><strong>{{ mount }}</strong></div>
-            {% set total = info.get('1K-blocks') | int %}
-            {% set used = info.get('used') | int %}
-            {% if total > 0 %}
-              {% set percent = (used / total * 100) | round(1) %}
-              <div style="font-size: 13px;">Использовано: {{ percent }}%</div>
-              <div style="height: 6px; background: #e0e0e0; border-radius: 3px; margin-top: 4px; overflow: hidden;">
-                <div style="height: 100%; width: {{ percent }}%; background: #2196f3;"></div>
-              </div>
-            {% endif %}
+  <!-- Процессор и память -->
+  <div class="accordion">
+    <div class="accordion-header" onclick="toggleAccordion(this)">
+      <span><i class="fas fa-microchip"></i> Процессор и память</span>
+      <i class="fas fa-chevron-down"></i>
+    </div>
+    <div class="accordion-body">
+      {% if minion.cpu_info %}
+        {% for key, val in minion.cpu_info.items() %}
+          <div class="detail-row">
+            <div class="detail-label">{{ key }}:</div>
+            <div class="detail-value">{{ val }}</div>
           </div>
-        {% else %}
-          —
         {% endfor %}
-      </div>
+      {% else %}
+        <div class="no-data">Нет данных</div>
+      {% endif %}
+      {% if minion.mem_info %}
+        {% for key in ['MemTotal', 'MemFree', 'MemAvailable', 'SwapTotal', 'SwapFree'] %}
+          {% if key in minion.mem_info %}
+            <div class="detail-row">
+              <div class="detail-label">{{ key }}:</div>
+              <div class="detail-value">{{ minion.mem_info[key] }}</div>
+            </div>
+          {% endif %}
+        {% endfor %}
+      {% endif %}
     </div>
   </div>
 
-  <!-- Топ процессов -->
-  <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
-    <h3 style="margin-top: 0; color: #2a5298;">Топ процессов</h3>
-    {% if minion.top_processes %}
+  <!-- Диски -->
+  <div class="accordion">
+    <div class="accordion-header" onclick="toggleAccordion(this)">
+      <span><i class="fas fa-hdd"></i> Диски</span>
+      <i class="fas fa-chevron-down"></i>
+    </div>
+    <div class="accordion-body">
+      {% if minion.disk_usage %}
+        {% for mount, info in minion.disk_usage.items() %}
+          {% if info.get('1K-blocks') %}
+            <div class="detail-row">
+              <div class="detail-label">{{ mount }}:</div>
+              <div class="detail-value">
+                Всего: {{ "%.1f"|format((info['1K-blocks']|int * 1024 / 1024**3)) }} GB |
+                Свободно: {{ "%.1f"|format((info['available']|int * 1024 / 1024**3)) }} GB
+              </div>
+            </div>
+          {% endif %}
+        {% endfor %}
+      {% else %}
+        <div class="no-data">Нет данных</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Процессы -->
+  <div class="accordion">
+    <div class="accordion-header" onclick="toggleAccordion(this)">
+      <span><i class="fas fa-tasks"></i> Топ процессов (10)</span>
+      <i class="fas fa-chevron-down"></i>
+    </div>
+    <div class="accordion-body">
+      {% if minion.top_processes %}
+        {% for proc in minion.top_processes[:10] %}
+          {% if proc is mapping and 'pid' in proc %}
+            <div class="detail-row" style="font-size: 13px;">
+              <div class="detail-label">{{ proc.pid }}:</div>
+              <div class="detail-value">
+                {{ proc.get('cmd', proc.get('name', '—'))[:60] }}
+              </div>
+            </div>
+          {% endif %}
+        {% endfor %}
+      {% else %}
+        <div class="no-data">Нет данных</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Сервисы -->
+  <div class="accordion">
+    <div class="accordion-header" onclick="toggleAccordion(this)">
+      <span><i class="fas fa-cogs"></i> Сервисы</span>
+      <i class="fas fa-chevron-down"></i>
+    </div>
+    <div class="accordion-body">
+      {% if minion.running_services %}
+        <div class="detail-value" style="font-size: 13px;">
+          {{ minion.running_services | join(', ') }}
+        </div>
+      {% else %}
+        <div class="no-data">Нет данных</div>
+      {% endif %}
+    </div>
+  </div>
+{% else %}
+  <div class="card">
+    <p>Миньон в данный момент не в сети. Невозможно получить данные или применить сценарий.</p>
+  </div>
+{% endif %}
+
+<!-- Инциденты -->
+<div class="incidents-section">
+  <h3>Инциденты, связанные с {{ minion.id }}</h3>
+  {% if related_incidents %}
+    <div style="overflow-x: auto;">
       <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
         <thead>
-          <tr style="border-bottom: 2px solid #eee;">
-            <th style="text-align: left; padding: 8px;">PID</th>
-            <th style="text-align: left; padding: 8px;">Пользователь</th>
-            <th style="text-align: left; padding: 8px;">CPU %</th>
-            <th style="text-align: left; padding: 8px;">Память %</th>
-            <th style="text-align: left; padding: 8px;">Команда</th>
+          <tr style="background: var(--primary); color: white;">
+            <th style="padding: 12px; text-align: left;">Дата</th>
+            {% for field in incident_fields %}
+              <th style="padding: 12px; text-align: left;">{{ field.display_name }}</th>
+            {% endfor %}
           </tr>
         </thead>
         <tbody>
-          {% for proc in minion.top_processes %}
-            <tr style="border-bottom: 1px solid #f0f0f0;">
-              <td style="padding: 8px;">{{ proc.get('pid', '—') }}</td>
-              <td style="padding: 8px;">{{ proc.get('user', '—') }}</td>
-              <td style="padding: 8px;">{{ proc.get('cpu', '—') }}</td>
-              <td style="padding: 8px;">{{ proc.get('mem', '—') }}</td>
-              <td style="padding: 8px;">{{ proc.get('command', '—') | truncate(50) }}</td>
+          {% for inc in related_incidents %}
+            <tr style="border-bottom: 1px solid #eee;">
+              <td style="padding: 12px;">{{ inc.timestamp | datetimeformat('%d.%m.%Y %H:%M') }}</td>
+              {% for field in incident_fields %}
+                <td style="padding: 12px;">{{ inc.get(field.field_key, '—') }}</td>
+              {% endfor %}
             </tr>
           {% endfor %}
         </tbody>
       </table>
-    {% else %}
-      Нет данных о процессах.
-    {% endif %}
-  </div>
+    </div>
+  {% else %}
+    <div class="no-incidents">Нет связанных инцидентов.</div>
+  {% endif %}
+</div>
 
-  <div style="margin-top: 20px;">
-    <a href="{{ url_for('scripts') }}" style="
-      padding: 10px 20px;
-      background: #2a5298;
-      color: white;
-      text-decoration: none;
-      border-radius: 6px;
-      display: inline-block;
-    ">Применить сценарий</a>
-    <a href="{{ url_for('dashboard') }}" style="
-      padding: 10px 20px;
-      background: #f0f0f0;
-      color: #333;
-      text-decoration: none;
-      border-radius: 6px;
-      display: inline-block;
-      margin-left: 10px;
-    ">← Назад</a>
-  </div>
-{% endif %}
+<script>
+  function toggleAccordion(header) {
+    const body = header.nextElementSibling;
+    const icon = header.querySelector('i:last-child');
+    if (body.classList.contains('expanded')) {
+      body.classList.remove('expanded');
+      icon.classList.remove('fa-chevron-up');
+      icon.classList.add('fa-chevron-down');
+    } else {
+      body.classList.add('expanded');
+      icon.classList.remove('fa-chevron-down');
+      icon.classList.add('fa-chevron-up');
+    }
+  }
+
+  function openApplyScriptModal() {
+    document.getElementById('applyScriptModal').style.display = 'flex';
+  }
+  function closeApplyScriptModal() {
+    document.getElementById('applyScriptModal').style.display = 'none';
+  }
+  window.addEventListener('click', (e) => {
+    const modal = document.getElementById('applyScriptModal');
+    if (e.target === modal) closeApplyScriptModal();
+  });
+</script>
 {% endblock %}

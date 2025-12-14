@@ -2,6 +2,7 @@ import json
 import os
 import logging
 import sys
+import time
 import uuid
 import atexit
 from flask import (
@@ -226,11 +227,56 @@ def mark_notification_read():
 @app.route('/minion/<minion_id>')
 @login_required
 def minion_detail(minion_id):
-    details = salt_mgr.get_minion_details(minion_id)
-    if not details:
-        flash("Не удалось получить данные миньона.", "error")
+    if not salt_mgr.is_available():
+        flash("Salt Master недоступен", "error")
         return redirect(url_for('dashboard'))
-    return render_template('minion_detail.html', username=session['username'], minion=details)
+
+    try:
+        details = salt_mgr.get_minion_details(minion_id)
+        if not details or not details.get("is_online"):
+            details = {"id": minion_id, "is_online": False}
+
+        if details["is_online"]:
+            try:
+                boot = salt_mgr.local.cmd(minion_id, 'system.get_boot_time', timeout=10)
+                boot_ts = boot.get(minion_id)
+                if isinstance(boot_ts, (int, float)):
+                    from datetime import datetime
+                    details["boot_time_str"] = datetime.fromtimestamp(boot_ts).strftime("%Y-%m-%d %H:%M:%S")
+                    uptime_sec = time.time() - boot_ts
+                    hours, remainder = divmod(int(uptime_sec), 3600)
+                    minutes, _ = divmod(remainder, 60)
+                    details["uptime_str"] = f"{hours} ч {minutes} мин"
+            except:
+                details["boot_time_str"] = "—"
+                details["uptime_str"] = "—"
+
+            try:
+                svcs = salt_mgr.local.cmd(minion_id, 'service.get_running', timeout=15).get(minion_id, [])
+                if isinstance(svcs, list):
+                    details["running_services"] = svcs[:20]  # первые 20
+            except:
+                details["running_services"] = None
+
+        scripts = script_mgr.list_scripts()
+
+        all_incidents = db.get_all_incidents(limit=1000)
+        related_incidents = [inc for inc in all_incidents if inc.get("minion_id") == minion_id]
+        incident_fields = db.get_incident_fields()
+
+        return render_template(
+            'minion_detail.html',
+            username=session['username'],
+            minion=details,
+            scripts=scripts,
+            related_incidents=related_incidents,
+            incident_fields=incident_fields
+        )
+
+    except Exception as e:
+        app.logger.exception("Ошибка в minion_detail")
+        flash(f"Ошибка при получении данных: {e}", "error")
+        return redirect(url_for('dashboard'))
 
 
 @app.route('/scripts')
@@ -597,6 +643,20 @@ def datetimeformat(value, format='%Y-%m-%d %H:%M:%S'):
     if isinstance(value, (int, float)):
         return datetime.fromtimestamp(value).strftime(format)
     return value
+
+
+@app.route('/incident/<int:incident_id>')
+@login_required
+def incident_detail(incident_id):
+    incident_list = db.get_all_incidents(limit=10000)
+    incident = next((inc for inc in incident_list if inc["id"] == incident_id), None)
+
+    if not incident:
+        flash("Инцидент не найден.", "error")
+        return redirect(url_for('incidents'))
+
+    fields = db.get_incident_fields()
+    return render_template('incident_detail.html', username=session['username'], incident=incident, fields=fields)
 
 
 if __name__ == '__main__':

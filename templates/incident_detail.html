@@ -1,0 +1,77 @@
+<!-- templates/incident_detail.html -->
+{% extends "base.html" %}
+{% block title %}UEDR — Инцидент #{{ incident.id }}{% endblock %}
+{% block content %}
+<style>
+  .detail-header {
+    margin-bottom: 24px;
+  }
+  .detail-header h1 {
+    font-size: 28px;
+    color: var(--primary);
+    margin-bottom: 8px;
+  }
+  .detail-meta {
+    color: var(--gray-dark);
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  .field-row {
+    display: flex;
+    margin-bottom: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--gray-light);
+  }
+  .field-label {
+    min-width: 180px;
+    font-weight: 600;
+    color: var(--gray-dark);
+  }
+  .field-value {
+    flex: 1;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+  .raw-data-section {
+    margin-top: 30px;
+  }
+  .raw-data-section h2 {
+    font-size: 20px;
+    margin-bottom: 12px;
+    color: var(--primary);
+  }
+  .raw-data-content {
+    background: #f8fafc;
+    padding: 16px;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 13px;
+    max-height: 300px;
+    overflow: auto;
+    white-space: pre;
+    border: 1px solid var(--gray-light);
+  }
+</style>
+
+<div class="detail-header">
+  <h1>Инцидент #{{ incident.id }}</h1>
+  <div class="detail-meta">
+    Получен: {{ incident.timestamp | datetimeformat }}
+    {% if incident.minion_id %}
+      | Миньон: <a href="{{ url_for('minion_detail', minion_id=incident.minion_id) }}" target="_blank">{{ incident.minion_id }}</a>
+    {% endif %}
+  </div>
+</div>
+
+{% for field in fields %}
+  <div class="field-row">
+    <div class="field-label">{{ field.display_name }}</div>
+    <div class="field-value">{{ incident.get(field.field_key, '—') }}</div>
+  </div>
+{% endfor %}
+
+<div class="raw-data-section">
+  <h2>Исходный JSON</h2>
+  <div class="raw-data-content">{{ incident.raw_data | tojson(indent=2) }}</div>
+</div>
+{% endblock %}
