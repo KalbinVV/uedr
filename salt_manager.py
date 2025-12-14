@@ -1,9 +1,9 @@
-# salt_manager.py
 import salt.client
 import logging
 import os
 
 logger = logging.getLogger(__name__)
+
 
 class SaltManager:
     def __init__(self):
@@ -43,11 +43,9 @@ class SaltManager:
     def get_minion_details(self, minion_id: str):
         if not self.is_available():
             return None
-
         try:
             ping = self.local.cmd(minion_id, 'test.ping', timeout=5)
             is_online = ping.get(minion_id, False) is True
-
             if not is_online:
                 return {"id": minion_id, "is_online": False}
 
@@ -59,6 +57,7 @@ class SaltManager:
             mem_info = self.local.cmd(minion_id, 'status.meminfo', timeout=10).get(minion_id, {})
             disk_usage = self.local.cmd(minion_id, 'disk.usage', timeout=10).get(minion_id, {})
             interfaces = self.local.cmd(minion_id, 'network.interfaces', timeout=10).get(minion_id, {})
+
             try:
                 top = self.local.cmd(minion_id, 'ps.top', timeout=10).get(minion_id, [])
                 top_10 = top[:10] if isinstance(top, list) else []
@@ -87,7 +86,6 @@ class SaltManager:
     def get_all_minions_info(self):
         if not self.is_available():
             return []
-
         try:
             pings = self.local.cmd('*', 'test.ping', timeout=5)
             online_minions = {mid for mid, status in pings.items() if status is True}
@@ -130,20 +128,13 @@ class SaltManager:
             return {"error": str(e)}
 
     def apply_rendered_state(self, minion_id: str, script_path: str):
-        """
-        Применяет state-файл по абсолютному пути.
-        Поддерживает файлы как в /srv/salt, так и во временных каталогах.
-        """
         if not self.is_available():
             return {"error": "Salt недоступен"}
-
         try:
             if script_path.startswith("/srv/salt/"):
-                # Файл уже в file_roots — используем напрямую
                 rel_path = os.path.relpath(script_path, "/srv/salt")
                 state_name = rel_path.replace("/", ".").rstrip(".sls")
             else:
-                # Копируем во временный каталог в /srv/salt
                 tmp_salt_dir = "/srv/salt/uedr_tmp"
                 os.makedirs(tmp_salt_dir, exist_ok=True)
                 script_name = os.path.basename(script_path)

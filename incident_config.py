@@ -1,7 +1,7 @@
-# incident_config.py
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 class IncidentConfig:
     def __init__(self, db):
@@ -20,9 +20,9 @@ class IncidentConfig:
         keys = json_path.split('.')
         value = payload
         try:
-            for k in keys:
-                if isinstance(value, dict) and k in value:
-                    value = value[k]
+            for key in keys:
+                if isinstance(value, dict) and key in value:
+                    value = value[key]
                 else:
                     return None
             return value

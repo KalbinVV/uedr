@@ -1,6 +1,7 @@
 import bcrypt
 from database import UserDatabase
 
+
 class AuthManager:
     def __init__(self, db: UserDatabase):
         self.db = db

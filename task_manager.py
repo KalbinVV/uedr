@@ -1,13 +1,13 @@
-# task_manager.py
 import threading
 import time
 import logging
 
 logger = logging.getLogger(__name__)
 
+
 class TaskManager:
     def __init__(self, max_tasks=100):
-        self.tasks = {}  # { task_id: { ... } }
+        self.tasks = {}
         self.lock = threading.Lock()
         self.max_tasks = max_tasks
 
@@ -22,6 +22,7 @@ class TaskManager:
                 result = None
                 status = "failed"
                 error = str(e)
+
             with self.lock:
                 if task_id in self.tasks:
                     self.tasks[task_id].update({
@@ -34,9 +35,10 @@ class TaskManager:
 
         thread = threading.Thread(target=wrapper, daemon=True)
         thread.start()
+
         with self.lock:
             self.tasks[task_id] = {
-                "task_id": task_id,  # ← сохраняем ID внутри задачи
+                "task_id": task_id,
                 "status": "running",
                 "started_at": time.time(),
                 "finished_at": None,
@@ -50,13 +52,17 @@ class TaskManager:
 
     def get_all_tasks_with_ids(self):
         with self.lock:
-            # Возвращаем список задач, каждая содержит свой task_id
             task_list = list(self.tasks.values())
             return sorted(task_list, key=lambda t: t.get("started_at", 0), reverse=True)
 
     def _cleanup(self):
         if len(self.tasks) > self.max_tasks:
-            sorted_items = sorted(self.tasks.items(), key=lambda x: x[1].get("started_at", 0))
-            keys_to_remove = [key for key, _ in sorted_items[:len(sorted_items) - self.max_tasks]]
+            sorted_items = sorted(
+                self.tasks.items(),
+                key=lambda x: x[1].get("started_at", 0)
+            )
+            keys_to_remove = [
+                key for key, _ in sorted_items[:len(sorted_items) - self.max_tasks]
+            ]
             for key in keys_to_remove:
                 self.tasks.pop(key, None)

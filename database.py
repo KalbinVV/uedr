@@ -1,17 +1,20 @@
-# database.py
 import sqlite3
 import logging
 import time
 from typing import Optional, Tuple, List, Dict
+
 logger = logging.getLogger(__name__)
+
+
 class UserDatabase:
     def __init__(self, db_path: str = "users.db"):
         self.db_path = db_path
         self._init_db()
+
     def _init_db(self) -> None:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            # Пользователи
+
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -19,7 +22,7 @@ class UserDatabase:
                     password_hash TEXT NOT NULL
                 )
             """)
-            # Инциденты
+
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS incidents (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,7 +31,7 @@ class UserDatabase:
                     raw_data TEXT NOT NULL
                 )
             """)
-            # Атрибуты инцидентов
+
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS incident_attributes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,7 +41,7 @@ class UserDatabase:
                     FOREIGN KEY (incident_id) REFERENCES incidents(id) ON DELETE CASCADE
                 )
             """)
-            # Поля инцидентов (конфигурация)
+
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS incident_fields (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,7 +50,7 @@ class UserDatabase:
                     json_path TEXT NOT NULL
                 )
             """)
-            # Правила автоматической реакции
+
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS auto_rules (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,7 +60,7 @@ class UserDatabase:
                     enabled INTEGER NOT NULL DEFAULT 1
                 )
             """)
-            # Условия правил
+
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS rule_conditions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,7 +70,7 @@ class UserDatabase:
                     FOREIGN KEY (rule_id) REFERENCES auto_rules(id) ON DELETE CASCADE
                 )
             """)
-            # Уведомления
+
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS notifications (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,23 +83,31 @@ class UserDatabase:
                     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
                 )
             """)
+
             conn.commit()
-    # === Пользователи ===
+
     def add_user(self, username: str, password_hash: str) -> bool:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                cursor.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)", (username, password_hash))
+                cursor.execute(
+                    "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+                    (username, password_hash)
+                )
                 conn.commit()
                 return True
         except sqlite3.IntegrityError:
             return False
+
     def get_user(self, username: str) -> Optional[Tuple[int, str, str]]:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT id, username, password_hash FROM users WHERE username = ?", (username,))
+            cursor.execute(
+                "SELECT id, username, password_hash FROM users WHERE username = ?",
+                (username,)
+            )
             return cursor.fetchone()
-    # === Уведомления ===
+
     def add_notification(self, user_id: int, message: str, category: str, related_id: str = None):
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -133,7 +144,10 @@ class UserDatabase:
     def mark_notification_as_read(self, notification_id: int, user_id: int):
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?", (notification_id, user_id))
+            cursor.execute(
+                "UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?",
+                (notification_id, user_id)
+            )
             conn.commit()
             return cursor.rowcount > 0
 
@@ -142,34 +156,45 @@ class UserDatabase:
             cursor = conn.cursor()
             cursor.execute("UPDATE notifications SET is_read = 1 WHERE user_id = ?", (user_id,))
             conn.commit()
-    # === Поля инцидентов ===
+
     def get_incident_fields(self) -> List[Dict]:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("SELECT display_name, field_key, json_path FROM incident_fields ORDER BY id")
+            cursor.execute(
+                "SELECT display_name, field_key, json_path FROM incident_fields ORDER BY id"
+            )
             return [dict(row) for row in cursor.fetchall()]
+
     def save_incident_fields(self, fields: List[Dict]) -> bool:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute("DELETE FROM incident_fields")
-                for f in fields:
+                for field in fields:
                     conn.execute(
                         "INSERT INTO incident_fields (display_name, field_key, json_path) VALUES (?, ?, ?)",
-                        (f["display_name"], f["field_key"], f["json_path"])
+                        (field["display_name"], field["field_key"], field["json_path"])
                     )
                 conn.commit()
                 return True
         except Exception as e:
             logger.error(f"Ошибка сохранения полей: {e}")
             return False
-    # === Инциденты ===
-    def add_incident(self, raw_json: str, extracted_values: Dict[str, str], timestamp: float, minion_id: str = None) -> bool:
+
+    def add_incident(
+            self,
+            raw_json: str,
+            extracted_values: Dict[str, str],
+            timestamp: float,
+            minion_id: str = None
+    ) -> bool:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                cursor.execute("INSERT INTO incidents (timestamp, minion_id, raw_data) VALUES (?, ?, ?)",
-                              (timestamp, minion_id, raw_json))
+                cursor.execute(
+                    "INSERT INTO incidents (timestamp, minion_id, raw_data) VALUES (?, ?, ?)",
+                    (timestamp, minion_id, raw_json)
+                )
                 incident_id = cursor.lastrowid
                 for key, value in extracted_values.items():
                     cursor.execute(
@@ -182,6 +207,7 @@ class UserDatabase:
         except Exception as e:
             logger.error(f"Ошибка сохранения инцидента: {e}")
             return False
+
     def get_all_incidents(self, limit: int = 100) -> List[Dict]:
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -201,7 +227,10 @@ class UserDatabase:
                         "raw_data": row["raw_data"]
                     }
                     cursor2 = conn.cursor()
-                    cursor2.execute("SELECT field_key, value FROM incident_attributes WHERE incident_id = ?", (row["id"],))
+                    cursor2.execute(
+                        "SELECT field_key, value FROM incident_attributes WHERE incident_id = ?",
+                        (row["id"],)
+                    )
                     for attr in cursor2.fetchall():
                         incident[attr["field_key"]] = attr["value"]
                     incidents.append(incident)
@@ -209,21 +238,34 @@ class UserDatabase:
         except Exception as e:
             logger.error(f"Ошибка получения инцидентов: {e}")
             return []
-    # === Правила автоматической реакции ===
+
     def get_all_rules(self):
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("SELECT id, name, logic, script_name, enabled FROM auto_rules ORDER BY id")
+            cursor.execute(
+                "SELECT id, name, logic, script_name, enabled FROM auto_rules ORDER BY id"
+            )
             rules = []
             for row in cursor.fetchall():
                 rule = dict(row)
                 cursor2 = conn.cursor()
-                cursor2.execute("SELECT field_key, value FROM rule_conditions WHERE rule_id = ?", (rule["id"],))
+                cursor2.execute(
+                    "SELECT field_key, value FROM rule_conditions WHERE rule_id = ?",
+                    (rule["id"],)
+                )
                 rule["conditions"] = [dict(cond) for cond in cursor2.fetchall()]
                 rules.append(rule)
             return rules
-    def save_rule(self, name: str, logic: str, script_name: str, conditions: list, enabled: bool = True) -> int:
+
+    def save_rule(
+            self,
+            name: str,
+            logic: str,
+            script_name: str,
+            conditions: list,
+            enabled: bool = True
+    ) -> int:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
@@ -242,6 +284,7 @@ class UserDatabase:
         except Exception as e:
             logger.error(f"Ошибка сохранения правила: {e}")
             return -1
+
     def delete_rule(self, rule_id: int) -> bool:
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -251,10 +294,14 @@ class UserDatabase:
         except Exception as e:
             logger.error(f"Ошибка удаления правила: {e}")
             return False
+
     def toggle_rule(self, rule_id: int, enabled: bool) -> bool:
         try:
             with sqlite3.connect(self.db_path) as conn:
-                conn.execute("UPDATE auto_rules SET enabled = ? WHERE id = ?", (int(enabled), rule_id))
+                conn.execute(
+                    "UPDATE auto_rules SET enabled = ? WHERE id = ?",
+                    (int(enabled), rule_id)
+                )
                 conn.commit()
                 return True
         except Exception as e:
