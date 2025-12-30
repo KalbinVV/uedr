@@ -18,6 +18,8 @@ from flask import (
 from datetime import datetime
 from functools import wraps
 
+from incident_worker_thread import IncidentWorkerThread
+
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
@@ -71,6 +73,9 @@ auto_responder = AutoResponder(db, task_mgr, salt_mgr, script_mgr)
 syslog_server = SyslogUDPServer(db, incident_config, salt_mgr, auto_responder)
 syslog_server.start()
 atexit.register(lambda: syslog_server.stop())
+incident_worker_thread = IncidentWorkerThread(db, incident_config, salt_mgr, auto_responder)
+incident_worker_thread.start()
+atexit.register(lambda: incident_worker_thread.stop())
 
 if not db.get_user("admin"):
     auth.register_user("admin", "admin")
@@ -552,67 +557,6 @@ def api_get_rule(rule_id):
     return jsonify(rule)
 
 
-@app.route('/rule/edit', methods=['GET', 'POST'])
-@app.route('/rule/edit/<int:rule_id>', methods=['GET', 'POST'])
-@login_required
-def edit_rule(rule_id=None):
-    if request.method == 'POST':
-        name = request.form.get('name', '').strip()
-        logic = request.form.get('logic', 'AND')
-        script_name = request.form.get('script_name', '').strip()
-        enabled = 'enabled' in request.form
-
-        if not name or not script_name:
-            flash("Имя правила и сценарий обязательны.", "error")
-            scripts = script_mgr.list_scripts()
-            return render_template(
-                'edit_rule.html',
-                username=session['username'],
-                scripts=scripts
-            )
-
-        conditions = []
-        i = 0
-        while True:
-            field_key = request.form.get(f'cond_field_{i}')
-            value = request.form.get(f'cond_value_{i}')
-            if field_key is None and value is None:
-                break
-            if field_key and value:
-                conditions.append({
-                    "field_key": field_key.strip(),
-                    "value": value.strip()
-                })
-            i += 1
-
-        if not conditions:
-            flash("Добавьте хотя бы одно условие.", "error")
-            scripts = script_mgr.list_scripts()
-            return render_template(
-                'edit_rule.html',
-                username=session['username'],
-                scripts=scripts
-            )
-
-        if rule_id:
-            db.delete_rule(rule_id)
-        db.save_rule(name, logic, script_name, conditions, enabled)
-        flash("Правило сохранено.", "success")
-        return redirect(url_for('rules'))
-
-    scripts = script_mgr.list_scripts()
-    rule = None
-    if rule_id:
-        rules = db.get_all_rules()
-        rule = next((r for r in rules if r["id"] == rule_id), None)
-    return render_template(
-        'edit_rule.html',
-        username=session['username'],
-        scripts=scripts,
-        rule=rule
-    )
-
-
 @app.route('/rule/delete/<int:rule_id>', methods=['POST'])
 @login_required
 def delete_rule(rule_id):
@@ -657,6 +601,136 @@ def incident_detail(incident_id):
 
     fields = db.get_incident_fields()
     return render_template('incident_detail.html', username=session['username'], incident=incident, fields=fields)
+
+@app.route('/minion-groups')
+@login_required
+def minion_groups():
+    groups = db.get_all_minion_groups()
+    minions = salt_mgr.get_all_minions_info() if salt_mgr.is_available() else []
+    minion_ids = [m["id"] for m in minions]
+    return render_template('minion_groups.html', username=session['username'], groups=groups, minions=minion_ids)
+
+
+@app.route('/minion-group/create', methods=['POST'])
+@login_required
+def create_minion_group():
+    name = request.form.get('name', '').strip()
+    if not name:
+        flash("Имя группы обязательно.", "error")
+    elif db.create_group(name):
+        flash("Группа создана.", "success")
+    else:
+        flash("Группа с таким именем уже существует.", "error")
+    return redirect(url_for('minion_groups'))
+
+
+@app.route('/minion-group/<int:group_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_minion_group(group_id):
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        members = request.form.getlist('members')
+        if not name:
+            flash("Имя обязательно.", "error")
+        elif db.update_group(group_id, name, members):
+            flash("Группа обновлена.", "success")
+            return redirect(url_for('minion_groups'))
+        else:
+            flash("Ошибка обновления.", "error")
+    group = db.get_group_by_id(group_id)
+    if not group:
+        flash("Группа не найдена.", "error")
+        return redirect(url_for('minion_groups'))
+    minions = salt_mgr.get_all_minions_info() if salt_mgr.is_available() else []
+    minion_ids = [m["id"] for m in minions]
+    return render_template('edit_minion_group.html', username=session['username'], group=group, minions=minion_ids)
+
+
+@app.route('/minion-group/<int:group_id>/delete', methods=['POST'])
+@login_required
+def delete_minion_group(group_id):
+    if db.delete_group(group_id):
+        flash("Группа удалена.", "success")
+    else:
+        flash("Ошибка удаления группы.", "error")
+    return redirect(url_for('minion_groups'))
+
+
+@app.route('/rule/edit', methods=['GET', 'POST'])
+@app.route('/rule/edit/<int:rule_id>', methods=['GET', 'POST'])
+@login_required
+def edit_rule(rule_id=None):
+    minions = salt_mgr.get_all_minions_info() if salt_mgr.is_available() else []
+    minion_ids = [m["id"] for m in minions]
+    groups = db.get_all_minion_groups()
+
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        logic = request.form.get('logic', 'AND')
+        script_name = request.form.get('script_name', '').strip()
+        target_type = request.form.get('target_type', 'incident_minion')
+        target_value = request.form.get('target_value', '').strip()
+        enabled = 'enabled' in request.form
+
+        if not name or not script_name:
+            flash("Имя правила и сценарий обязательны.", "error")
+            scripts = script_mgr.list_scripts()
+            return render_template(
+                'edit_rule.html',
+                username=session['username'],
+                scripts=scripts,
+                minions=minion_ids,
+                groups=groups,
+                rule=None if not rule_id else next((r for r in db.get_all_rules() if r["id"] == rule_id), None)
+            )
+
+        conditions = []
+        i = 0
+        while True:
+            field_key = request.form.get(f'cond_field_{i}')
+            value = request.form.get(f'cond_value_{i}')
+            if field_key is None and value is None:
+                break
+            if field_key and value:
+                conditions.append({
+                    "field_key": field_key.strip(),
+                    "value": value.strip()
+                })
+            i += 1
+
+        if not conditions:
+            flash("Добавьте хотя бы одно условие.", "error")
+            scripts = script_mgr.list_scripts()
+            return render_template(
+                'edit_rule.html',
+                username=session['username'],
+                scripts=scripts,
+                minions=minion_ids,
+                groups=groups,
+                rule=None if not rule_id else next((r for r in db.get_all_rules() if r["id"] == rule_id), None)
+            )
+
+        if rule_id:
+            db.delete_rule(rule_id)
+        db.save_rule(name, logic, script_name, target_type, target_value, conditions, enabled)
+        flash("Правило сохранено.", "success")
+        return redirect(url_for('rules'))
+
+    scripts = script_mgr.list_scripts()
+    rule = None
+
+    if rule_id:
+        rules = db.get_all_rules()
+        rule = next((r for r in rules if r["id"] == rule_id), None)
+
+    return render_template(
+        'edit_rule.html',
+        username=session['username'],
+        scripts=scripts,
+        minions=minion_ids,
+        groups=groups,
+        rule=rule
+    )
 
 
 if __name__ == '__main__':

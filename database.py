@@ -1,10 +1,9 @@
+# database.py (полная версия с изменениями)
 import sqlite3
 import logging
 import time
 from typing import Optional, Tuple, List, Dict
-
 logger = logging.getLogger(__name__)
-
 
 class UserDatabase:
     def __init__(self, db_path: str = "users.db"):
@@ -14,7 +13,6 @@ class UserDatabase:
     def _init_db(self) -> None:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,7 +20,6 @@ class UserDatabase:
                     password_hash TEXT NOT NULL
                 )
             """)
-
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS incidents (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,7 +28,6 @@ class UserDatabase:
                     raw_data TEXT NOT NULL
                 )
             """)
-
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS incident_attributes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,7 +37,6 @@ class UserDatabase:
                     FOREIGN KEY (incident_id) REFERENCES incidents(id) ON DELETE CASCADE
                 )
             """)
-
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS incident_fields (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,17 +45,17 @@ class UserDatabase:
                     json_path TEXT NOT NULL
                 )
             """)
-
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS auto_rules (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
                     logic TEXT NOT NULL CHECK(logic IN ('AND', 'OR')),
                     script_name TEXT NOT NULL,
+                    target_type TEXT NOT NULL CHECK(target_type IN ('incident_minion', 'specific_minion', 'minion_group')),
+                    target_value TEXT,
                     enabled INTEGER NOT NULL DEFAULT 1
                 )
             """)
-
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS rule_conditions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,7 +65,6 @@ class UserDatabase:
                     FOREIGN KEY (rule_id) REFERENCES auto_rules(id) ON DELETE CASCADE
                 )
             """)
-
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS notifications (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -83,9 +77,24 @@ class UserDatabase:
                     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
                 )
             """)
-
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS minion_groups (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT UNIQUE NOT NULL
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS group_members (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    group_id INTEGER NOT NULL,
+                    minion_id TEXT NOT NULL,
+                    FOREIGN KEY (group_id) REFERENCES minion_groups(id) ON DELETE CASCADE,
+                    UNIQUE(group_id, minion_id)
+                )
+            """)
             conn.commit()
 
+    # --- существующие методы без изменений ---
     def add_user(self, username: str, password_hash: str) -> bool:
         try:
             with sqlite3.connect(self.db_path) as conn:
@@ -239,12 +248,74 @@ class UserDatabase:
             logger.error(f"Ошибка получения инцидентов: {e}")
             return []
 
+    # --- НОВЫЕ МЕТОДЫ: группы миньонов ---
+    def get_all_minion_groups(self) -> List[Dict]:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, name FROM minion_groups ORDER BY name")
+            groups = [dict(row) for row in cursor.fetchall()]
+            for g in groups:
+                cursor2 = conn.cursor()
+                cursor2.execute("SELECT minion_id FROM group_members WHERE group_id = ?", (g["id"],))
+                g["members"] = [r["minion_id"] for r in cursor2.fetchall()]
+            return groups
+
+    def get_group_by_id(self, group_id: int) -> Optional[Dict]:
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, name FROM minion_groups WHERE id = ?", (group_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            group = {"id": row[0], "name": row[1]}
+            cursor2 = conn.cursor()
+            cursor2.execute("SELECT minion_id FROM group_members WHERE group_id = ?", (group["id"],))
+            group["members"] = [r[0] for r in cursor2.fetchall()]
+            return group
+
+    def create_group(self, name: str) -> bool:
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("INSERT INTO minion_groups (name) VALUES (?)", (name,))
+                conn.commit()
+                return True
+        except sqlite3.IntegrityError:
+            return False
+
+    def update_group(self, group_id: int, name: str, members: List[str]) -> bool:
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("UPDATE minion_groups SET name = ? WHERE id = ?", (name, group_id))
+                conn.execute("DELETE FROM group_members WHERE group_id = ?", (group_id,))
+                for minion_id in members:
+                    conn.execute(
+                        "INSERT INTO group_members (group_id, minion_id) VALUES (?, ?)",
+                        (group_id, minion_id)
+                    )
+                conn.commit()
+                return True
+        except Exception as e:
+            logger.error(f"Ошибка обновления группы: {e}")
+            return False
+
+    def delete_group(self, group_id: int) -> bool:
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("DELETE FROM minion_groups WHERE id = ?", (group_id,))
+                conn.commit()
+                return True
+        except Exception as e:
+            logger.error(f"Ошибка удаления группы: {e}")
+            return False
+
+    # --- Правила ---
     def get_all_rules(self):
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT id, name, logic, script_name, enabled FROM auto_rules ORDER BY id"
+                "SELECT id, name, logic, script_name, target_type, target_value, enabled FROM auto_rules ORDER BY id"
             )
             rules = []
             for row in cursor.fetchall():
@@ -263,6 +334,8 @@ class UserDatabase:
             name: str,
             logic: str,
             script_name: str,
+            target_type: str,
+            target_value: str,
             conditions: list,
             enabled: bool = True
     ) -> int:
@@ -270,8 +343,8 @@ class UserDatabase:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "INSERT INTO auto_rules (name, logic, script_name, enabled) VALUES (?, ?, ?, ?)",
-                    (name, logic, script_name, int(enabled))
+                    "INSERT INTO auto_rules (name, logic, script_name, target_type, target_value, enabled) VALUES (?, ?, ?, ?, ?, ?)",
+                    (name, logic, script_name, target_type, target_value, int(enabled))
                 )
                 rule_id = cursor.lastrowid
                 for cond in conditions:

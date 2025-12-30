@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Редактирование группы: {{ group.name }}</h2>
+<form method="post">
+  <div style="margin-bottom:16px;">
+    <label>Имя:</label>
+    <input type="text" name="name" value="{{ group.name }}" required style="padding:6px; width:300px;">
+  </div>
+  <div style="margin-bottom:16px;">
+    <label>Миньоны:</label><br>
+    {% for m in minions %}
+      <label style="display:block; margin:4px 0;">
+        <input type="checkbox" name="members" value="{{ m }}" {% if m in group.members %}checked{% endif %}> {{ m }}
+      </label>
+    {% endfor %}
+  </div>
+  <button type="submit" class="btn btn-primary">Сохранить</button>
+  <a href="{{ url_for('minion_groups') }}" class="btn btn-secondary">Отмена</a>
+</form>
+{% endblock %}

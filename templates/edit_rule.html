@@ -2,20 +2,57 @@
 {% extends "base.html" %}
 {% block content %}
 <h2>{{ "Редактирование правила" if rule else "Новое правило" }}</h2>
-
 <form method="post">
   <div style="margin-bottom: 16px;">
     <label>Имя правила:</label>
     <input type="text" name="name" value="{{ rule.name if rule else '' }}" required
            style="width: 100%; padding: 8px; margin-top: 4px;">
   </div>
-
   <div style="margin-bottom: 16px;">
     <label>Сценарий:</label>
     <select name="script_name" required style="width: 100%; padding: 8px; margin-top: 4px;">
       <option value="">— Выберите сценарий —</option>
       {% for s in scripts %}
         <option value="{{ s }}" {% if rule and rule.script_name == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <!-- Выбор цели -->
+  <div style="margin-bottom: 16px; padding: 12px; background: #f8fafc; border-radius: 6px;">
+    <label>Целевой узел:</label><br>
+    <label style="margin-right: 16px; margin-top: 8px;">
+      <input type="radio" name="target_type" value="incident_minion" {% if not rule or rule.target_type == "incident_minion" %}checked{% endif %}>
+      Миньон инцидента
+    </label>
+    <label style="margin-right: 16px;">
+      <input type="radio" name="target_type" value="specific_minion" {% if rule and rule.target_type == "specific_minion" %}checked{% endif %}>
+      Конкретный миньон
+    </label>
+    <label>
+      <input type="radio" name="target_type" value="minion_group" {% if rule and rule.target_type == "minion_group" %}checked{% endif %}>
+      Группа миньонов
+    </label>
+  </div>
+
+  <!-- Конкретный миньон -->
+  <div id="target-specific" style="margin-bottom: 16px; display: {% if rule and rule.target_type == 'specific_minion' %}block{% else %}none{% endif %};">
+    <label>Миньон:</label>
+    <select name="target_value" style="width: 100%; padding: 8px; margin-top: 4px;">
+      <option value="">— Выберите миньон —</option>
+      {% for m in minions %}
+        <option value="{{ m }}" {% if rule and rule.target_value == m %}selected{% endif %}>{{ m }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <!-- Группа миньонов -->
+  <div id="target-group" style="margin-bottom: 16px; display: {% if rule and rule.target_type == 'minion_group' %}block{% else %}none{% endif %};">
+    <label>Группа:</label>
+    <select name="target_value" style="width: 100%; padding: 8px; margin-top: 4px;">
+      <option value="">— Выберите группу —</option>
+      {% for g in groups %}
+        <option value="{{ g.id }}" {% if rule and rule.target_value == g.id|string %}selected{% endif %}>{{ g.name }}</option>
       {% endfor %}
     </select>
   </div>
@@ -76,5 +113,18 @@ function addCondition() {
   `;
   container.appendChild(div);
 }
+
+// Переключение видимости целевых полей
+document.querySelectorAll('input[name="target_type"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    document.getElementById('target-specific').style.display = 'none';
+    document.getElementById('target-group').style.display = 'none';
+    if (radio.value === 'specific_minion') {
+      document.getElementById('target-specific').style.display = 'block';
+    } else if (radio.value === 'minion_group') {
+      document.getElementById('target-group').style.display = 'block';
+    }
+  });
+});
 </script>
 {% endblock %}

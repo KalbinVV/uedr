@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Группы миньонов</h2>
+<a href="{{ url_for('minion_groups') }}" class="btn btn-primary" style="margin-bottom: 16px;">Обновить</a>
+<button class="btn btn-accent" onclick="document.getElementById('create-group-form').style.display='block'">Создать группу</button>
+
+<form id="create-group-form" method="post" action="{{ url_for('create_minion_group') }}" style="display:none; margin:16px 0; padding:16px; background:#f0f8ff; border-radius:6px;">
+  <input type="text" name="name" placeholder="Имя группы" required style="padding:6px; width:200px;">
+  <button type="submit">Создать</button>
+  <button type="button" onclick="this.closest('form').style.display='none'">Отмена</button>
+</form>
+
+{% if groups %}
+  <div style="margin-top:20px;">
+    {% for g in groups %}
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <strong>{{ g.name }}</strong>
+        <div>
+          <a href="{{ url_for('edit_minion_group', group_id=g.id) }}" class="btn btn-secondary" style="padding:4px 8px; font-size:0.9em;">Редактировать</a>
+          <form method="post" action="{{ url_for('delete_minion_group', group_id=g.id) }}" style="display:inline;">
+            <button type="submit" class="btn" style="background:#ffcccc; padding:4px 8px; font-size:0.9em;">Удалить</button>
+          </form>
+        </div>
+      </div>
+      <div style="font-size:0.9em; color:#666; margin-top:6px;">
+        Миньоны: {{ g.members|join(', ') or '—' }}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p>Нет групп.</p>
+{% endif %}
+{% endblock %}

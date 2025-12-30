@@ -59,64 +59,18 @@ class SyslogUDPServer:
         try:
             start = message.find('{')
             end = message.rfind('}')
-            if start == -1 or end == -1 or end <= start:
+            if start == -1 or end <= start:
                 logger.debug("Сообщение не содержит JSON")
                 return
-
             json_str = message[start:end + 1]
             payload = json.loads(json_str)
-            logger.debug(f"Распаршен JSON: {payload}")
+            logger.debug(f"Распаршен JSON от {source_ip}: {payload}")
 
-            fields = self.config.get_all_fields()
-            extracted = {}
-            timestamp = time.time()
+            # Отправка в RabbitMQ
+            from rmq_client import RMQClient
+            rmq = RMQClient()
+            rmq.publish_incident(payload, source_ip)
 
-            for field in fields:
-                key = field["field_key"]
-                path = field["json_path"]
-                val = self.config.extract_value(payload, path)
-                if val is None and path == "event_src.ip":
-                    val = source_ip
-                if path == "timestamp" and val is not None:
-                    try:
-                        timestamp = float(val)
-                    except (ValueError, TypeError):
-                        pass
-                extracted[key] = val
-
-            minion_id = None
-            src_ip = extracted.get("src_ip")
-            src_hostname = extracted.get("src_hostname")
-
-            if self.salt_mgr and self.salt_mgr.is_available():
-                try:
-                    all_minions = self.salt_mgr.get_all_minions_info()
-                    for m in all_minions:
-                        if src_ip and src_ip in m.get("ip", ""):
-                            minion_id = m["id"]
-                            break
-                        if src_hostname:
-                            grains = self.salt_mgr.get_minion_grains(m["id"])
-                            hostname = grains.get("host") or grains.get("nodename")
-                            if hostname and hostname.lower() == src_hostname.lower():
-                                minion_id = m["id"]
-                                break
-                except Exception as e:
-                    logger.error(f"Ошибка при сопоставлении миньона: {e}")
-
-            if self.db.add_incident(json_str, extracted, timestamp, minion_id):
-                logger.info(f"Инцидент принят от {source_ip}, привязан к миньону: {minion_id}")
-                most_recent_incident = self.db.get_all_incidents(limit=1)
-                if most_recent_incident:
-                    incident_id = str(most_recent_incident[0]["id"])
-                    send_notification("admin", f"Новый инцидент от {source_ip}", "incident", incident_id)
-
-                try:
-                    self.auto_responder.evaluate_rules(extracted, minion_id)
-                except Exception as e:
-                    logger.exception("Ошибка при обработке правил автоматической реакции")
-            else:
-                logger.error("Не удалось сохранить инцидент")
         except json.JSONDecodeError as e:
             logger.error(f"Невалидный JSON от {source_ip}: {e}")
         except Exception as e:

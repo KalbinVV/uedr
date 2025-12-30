@@ -1,8 +1,7 @@
+# auto_responder.py (полная версия)
 import logging
-from typing import Dict
-
+from typing import Dict, List
 logger = logging.getLogger(__name__)
-
 
 def _send_notification(username: str, message: str, category: str, related_id: str = None):
     try:
@@ -12,7 +11,6 @@ def _send_notification(username: str, message: str, category: str, related_id: s
             db.add_notification(user_id, message, category, related_id)
     except Exception as e:
         logger.error(f"Не удалось отправить уведомление из авто-респондера: {e}")
-
 
 class AutoResponder:
     def __init__(self, db, task_manager, salt_mgr, script_mgr):
@@ -25,7 +23,6 @@ class AutoResponder:
         if not minion_id:
             logger.debug("Инцидент не привязан к миньону — пропуск правил")
             return
-
         try:
             rules = self.db.get_all_rules()
             for rule in rules:
@@ -41,7 +38,6 @@ class AutoResponder:
         conditions = rule.get("conditions", [])
         if not conditions:
             return False
-
         logic = rule.get("logic", "AND")
         matches = []
         for cond in conditions:
@@ -49,57 +45,76 @@ class AutoResponder:
             expected_value = cond["value"]
             actual_value = incident_data.get(field_key)
             matches.append(str(actual_value) == str(expected_value))
-
         if logic == "AND":
             return all(matches)
         else:
             return any(matches)
 
-    def _execute_action(self, rule: dict, minion_id: str, incident_data: dict):
+    def _execute_action(self, rule: dict, incident_minion_id: str, incident_data: dict):
         script_name = rule["script_name"]
-        from uuid import uuid4
-        task_id = str(uuid4())
+        target_type = rule["target_type"]
+        target_value = rule.get("target_value")
 
-        def _run_task():
-            logger = logging.getLogger(__name__)
-            try:
-                logger.debug(f"[Авто] Рендеринг сценария '{script_name}' с контекстом")
-                temp_path = self.script_mgr.render_script(script_name, incident_data)
-                raw_result = self.salt_mgr.apply_rendered_state(minion_id, temp_path)
-                return {
-                    "minion": minion_id,
-                    "state": script_name,
-                    "details": raw_result
-                }
-            except Exception as e:
-                logger.exception(
-                    f"[Авто] Ошибка при применении сценария '{script_name}' к '{minion_id}'"
-                )
-                return {
-                    "minion": minion_id,
-                    "state": script_name,
-                    "error": str(e)
-                }
+        # Определяем список целевых миньонов
+        target_minions = []
+        if target_type == "incident_minion":
+            target_minions = [incident_minion_id] if incident_minion_id else []
+        elif target_type == "specific_minion":
+            if target_value:
+                target_minions = [target_value]
+        elif target_type == "minion_group":
+            if target_value:
+                try:
+                    group_id = int(target_value)
+                    group = self.db.get_group_by_id(group_id)
+                    if group:
+                        target_minions = group["members"]
+                except (ValueError, TypeError):
+                    logger.error(f"Некорректный ID группы: {target_value}")
+        else:
+            logger.error(f"Неизвестный тип цели: {target_type}")
+            return
 
-        self.task_manager.submit_task(task_id, _run_task)
-        logger.info(f"Запущен сценарий '{script_name}' на миньоне '{minion_id}' по правилу")
+        if not target_minions:
+            logger.warning(f"Нет целевых миньонов для правила '{rule['name']}'")
+            return
+
+        # Запускаем задачу для каждого миньона
+        for minion_id in target_minions:
+            from uuid import uuid4
+            task_id = str(uuid4())
+
+            def _run_task(minion_id_local=minion_id):
+                logger = logging.getLogger(__name__)
+                try:
+                    logger.debug(f"[Авто] Рендеринг сценария '{script_name}' с контекстом")
+                    temp_path = self.script_mgr.render_script(script_name, incident_data)
+                    raw_result = self.salt_mgr.apply_rendered_state(minion_id_local, temp_path)
+                    return {
+                        "minion": minion_id_local,
+                        "state": script_name,
+                        "details": raw_result
+                    }
+                except Exception as e:
+                    logger.exception(
+                        f"[Авто] Ошибка при применении сценария '{script_name}' к '{minion_id_local}'"
+                    )
+                    return {
+                        "minion": minion_id_local,
+                        "state": script_name,
+                        "error": str(e)
+                    }
+
+            self.task_manager.submit_task(task_id, _run_task)
+            logger.info(f"Запущен сценарий '{script_name}' на миньоне '{minion_id}' по правилу '{rule['name']}'")
+            _send_notification("admin",
+                               f"Запущен сценарий '{script_name}' на миньоне '{minion_id}' по правилу '{rule['name']}'",
+                               "rule",
+                               str(rule['id']))
+
         _send_notification(
             "admin",
-            f"Правило '{rule['name']}' сработало на миньоне {minion_id}",
+            f"Правило '{rule['name']}' сработало на {len(target_minions)} узл(ах)",
             "rule",
             str(rule['id'])
         )
-
-    @staticmethod
-    def _run_salt_state_wrapped(salt_mgr, minion_id: str, state_name: str):
-        try:
-            logger = logging.getLogger(__name__)
-            logger.debug(f"[Авто] Применение state '{state_name}' к '{minion_id}'")
-            result = salt_mgr.apply_state(minion_id, state_name)
-            return result
-        except Exception as e:
-            logger = logging.getLogger(__name__)
-            logger.exception(
-                f"[Авто] Ошибка при применении сценария '{state_name}' к '{minion_id}'"
-            )
-            return {"error": str(e)}
