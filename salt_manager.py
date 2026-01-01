@@ -95,16 +95,18 @@ class SaltManager:
                 os_name = grains.get('os', 'N/A')
                 os_version = grains.get('osrelease', 'N/A')
                 kernel = grains.get('kernelrelease', 'N/A')
+
                 ip4 = grains.get('ipv4', [])
                 if not isinstance(ip4, list):
                     ip4 = []
-                ip_list = ', '.join(str(ip) for ip in ip4) if ip4 else 'N/A'
+
+                ip_list = [str(ip) for ip in ip4 if ip and ip != '127.0.0.1' and ':' not in ip]
                 minions_summary.append({
                     'id': mid,
                     'os': os_name,
                     'os_version': os_version,
                     'kernel': kernel,
-                    'ip': ip_list,
+                    'ip': ip_list,  # ✅ Список
                     'is_online': True
                 })
             return minions_summary
