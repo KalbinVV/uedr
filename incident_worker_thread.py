@@ -42,6 +42,7 @@ class IncidentWorkerThread:
             timestamp = time.time()
 
         fields = self.config.get_all_fields()
+        logger.info(fields)
         extracted = {}
 
         src_ip_key = None
@@ -61,6 +62,23 @@ class IncidentWorkerThread:
 
             if path in payload:
                 extracted[key] = payload[path]
+            else:
+                if path.find('.') != -1:
+                    logger.info(path)
+                    current_value = None
+
+                    for s_path in path.split('.'):
+                        try:
+                            if current_value is None:
+                                current_value = payload[s_path]
+                            else:
+                                current_value = current_value[s_path]
+
+                            logger.info(current_value)
+                        except (Exception):
+                            pass
+
+                    extracted[key] = current_value
 
         minion_id = None
 

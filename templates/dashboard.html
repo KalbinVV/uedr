@@ -45,20 +45,6 @@
   </div>
 </div>
 
-<!-- Последние инциденты -->
-<div class="card">
-  <div class="card-header">
-    <h3 class="card-title">Последние инциденты</h3>
-    <div class="card-actions">
-      <a href="{{ url_for('incidents') }}"><i class="fas fa-eye"></i> Все</a>
-      <button><i class="fas fa-sync-alt"></i></button>
-    </div>
-  </div>
-  <div id="last-incidents-table">
-    {% include 'dashboard_incidents_table.html' %}
-  </div>
-</div>
-
 <!-- Последние задачи -->
 <div class="card">
   <div class="card-header">

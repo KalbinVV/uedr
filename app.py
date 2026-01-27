@@ -130,21 +130,9 @@ def dashboard():
     else:
         salt_error = "Salt Master недоступен"
 
-    last_incidents = db.get_all_incidents(limit=5)
+    last_incidents = db.get_all_incidents()
     incident_fields = db.get_incident_fields()
     last_tasks = task_mgr.get_all_tasks_with_ids()[:5]
-
-    import time
-    now = time.time()
-    last_24h = now - 24 * 3600
-    all_incidents = db.get_all_incidents(limit=1000)
-    hourly = [0] * 24
-    for inc in all_incidents:
-        ts = inc["timestamp"]
-        if ts >= last_24h:
-            hour = int((now - ts) / 3600)
-            if 0 <= hour < 24:
-                hourly[23 - hour] += 1
 
     return render_template(
         'dashboard.html',
@@ -153,8 +141,7 @@ def dashboard():
         salt_error=salt_error,
         last_incidents=last_incidents,
         incident_fields=incident_fields,
-        last_tasks=last_tasks,
-        chart_data=hourly
+        last_tasks=last_tasks
     )
 
 
@@ -194,7 +181,7 @@ def dashboard_data_api():
 @app.route('/api/dashboard-incidents-html')
 @login_required
 def dashboard_incidents_html():
-    last_incidents = db.get_all_incidents(limit=5)
+    last_incidents = db.get_all_incidents()
     incident_fields = db.get_incident_fields()
     return render_template(
         'dashboard_incidents_table.html',

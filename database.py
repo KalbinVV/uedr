@@ -217,7 +217,7 @@ class UserDatabase:
             logger.error(f"Ошибка сохранения инцидента: {e}")
             return False
 
-    def get_all_incidents(self, limit: int = 100) -> List[Dict]:
+    def get_all_incidents(self, limit: int = 10000) -> List[Dict]:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
