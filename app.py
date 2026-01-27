@@ -733,5 +733,67 @@ def edit_rule(rule_id=None):
     )
 
 
+@app.route('/topology')
+@login_required
+def topology():
+    minions = []
+    if salt_mgr.is_available():
+        try:
+            minions = salt_mgr.get_all_minions_info()
+        except Exception as e:
+            app.logger.exception("Ошибка получения миньонов")
+    return render_template('topology.html', username=session['username'], minions=minions)
+
+
+@app.route('/api/topology/arp')
+@login_required
+def api_topology_arp():
+    nodes = []
+    links = []
+    seen_ips = set()
+
+    if not salt_mgr.is_available():
+        return jsonify({"nodes": [], "links": []})
+
+    try:
+        minions = salt_mgr.get_all_minions_info()
+        # Собираем все IP миньонов
+        for m in minions:
+            seen_ips.update(m.get("ip", []))
+            nodes.append({
+                "id": m["id"],
+                "label": m["id"],
+                "type": "minion",
+                "status": "online" if m.get("is_online") else "offline"
+            })
+
+        online_minions = [m for m in minions if m.get("is_online")]
+        for m in online_minions:
+            arp_entries = salt_mgr.get_neighbors(m["id"])
+            for entry in arp_entries:
+                ip = entry["ip"]
+                if ip in seen_ips:
+                    continue
+                node_id = f"arp_{ip}"
+                nodes.append({
+                    "id": node_id,
+                    "label": ip,
+                    "type": "arp_node",
+                    "mac": entry["mac"],
+                    "iface": entry["iface"]
+                })
+                links.append({
+                    "source": m["id"],
+                    "target": node_id,
+                    "type": "arp"
+                })
+                seen_ips.add(ip)
+
+        return jsonify({"nodes": nodes, "links": links})
+    except Exception as e:
+        app.logger.exception("Ошибка в /api/topology/arp")
+        return jsonify({"nodes": [], "links": []}), 500
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)

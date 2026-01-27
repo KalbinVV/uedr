@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+#topology-container {
+    width: 100%;
+    height: calc(100vh - 120px);
+    background: #f9fafb;
+    border-radius: 8px;
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+    position: relative;
+}
+#topology-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+.node {
+    cursor: pointer;
+    stroke: white;
+    stroke-width: 2px;
+}
+.node.minion.online { fill: #3182ce; }
+.node.minion.offline { fill: #e53e3e; }
+.link {
+    stroke: #cbd5e1;
+    stroke-width: 2px;
+    marker-end: url(#arrowhead);
+}
+.label {
+    font-size: 12px;
+    text-anchor: middle;
+    pointer-events: none;
+    fill: #1a202c;
+}
+.tooltip {
+    position: absolute;
+    background: rgba(0,0,0,0.9);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    max-width: 250px;
+    z-index: 1000;
+    display: none;
+}
+.controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    box-shadow: var(--card-shadow);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+</style>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Топология сети</h3>
+        <div class="card-actions">
+            <button onclick="resetZoom()" style="padding: 6px 12px; background: #2a5298; color: white; border: none; border-radius: 4px;">
+                <i class="fas fa-expand"></i> Сбросить
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="topology-container">
+    <div class="controls">
+        <span>Узлов: <span id="node-count">0</span></span>
+    </div>
+    <svg id="topology-svg">
+        <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="7"
+                    refX="10" refY="3.5" orient="auto">
+                <polygon points="0 0, 10 3.5, 0 7" fill="#cbd5e1" />
+            </marker>
+        </defs>
+    </svg>
+    <div id="tooltip" class="tooltip"></div>
+</div>
+
+<script src="{{ url_for('static', filename='d3.v7.min.js') }}"></script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const container = document.getElementById('topology-container');
+    const svgEl = document.getElementById('topology-svg');
+    const tooltip = d3.select("#tooltip");
+    const nodeCountEl = document.getElementById('node-count');
+
+    // Получаем размеры контейнера
+    function getSize() {
+        return {
+            w: container.clientWidth || 800,
+            h: container.clientHeight || 600
+        };
+    }
+
+    let width, height;
+    const size = getSize();
+    width = size.w;
+    height = size.h;
+
+    // Устанавливаем viewBox
+    svgEl.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    svgEl.setAttribute("width", width);
+    svgEl.setAttribute("height", height);
+
+    // Данные из шаблона
+    const minions = {{ minions | tojson }};
+    if (!minions || minions.length === 0) {
+        svgEl.innerHTML = `
+            <text x="${width/2}" y="${height/2}" text-anchor="middle" dominant-baseline="middle"
+                  fill="#94a3b8" font-size="18">Нет миньонов</text>
+        `;
+        return;
+    }
+
+    // Генерируем узлы: каждый миньон — свой узел
+    const nodes = minions.map((m, i) => ({
+        id: m.id,
+        label: m.id,
+        type: "minion",
+        status: m.is_online ? "online" : "offline",
+        ip: m.ip || [],
+        x: 100 + (i % 4) * (width / 5),
+        y: 100 + Math.floor(i / 4) * (height / 5)
+    }));
+
+    // Генерируем связи: если у двух миньонов есть общий IP — соединяем
+    const links = [];
+    for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+            const ipSetA = new Set(nodes[i].ip);
+            const ipSetB = new Set(nodes[j].ip);
+            const common = [...ipSetA].filter(x => ipSetB.has(x));
+            if (common.length > 0) {
+                links.push({
+                    source: nodes[i].id,
+                    target: nodes[j].id,
+                    type: "shared_ip",
+                    ips: common.join(", ")
+                });
+            }
+        }
+    }
+
+    nodeCountEl.textContent = nodes.length;
+
+    // D3
+    const svg = d3.select("#topology-svg");
+    const g = svg.append("g");
+
+    const simulation = d3.forceSimulation(nodes)
+        .force("link", d3.forceLink(links).id(d => d.id).distance(120))
+        .force("charge", d3.forceManyBody().strength(-150))
+        .force("center", d3.forceCenter(width / 2, height / 2))
+        .force("collision", d3.forceCollide().radius(40));
+
+    // Узлы
+    const node = g.selectAll(".node")
+        .data(nodes, d => d.id)
+        .enter()
+        .append("circle")
+        .attr("class", d => `node minion ${d.status}`)
+        .attr("r", 25)
+        .call(d3.drag()
+            .on("start", dragstarted)
+            .on("drag", dragged)
+            .on("end", dragended))
+        .on("mouseover", (event, d) => {
+            tooltip.style("display", "block")
+                .html(`<strong>${d.label}</strong><br>Статус: ${d.status}<br>IP: ${d.ip.join(", ") || "—"}<br>Связи: ${links.filter(l => l.source === d.id || l.target === d.id).length}`)
+                .style("left", (event.pageX + 10) + "px")
+                .style("top", (event.pageY + 10) + "px");
+        })
+        .on("mouseout", () => tooltip.style("display", "none"))
+        .on("click", (event, d) => {
+            if (d.status === "online") {
+                window.location.href = `/minion/${d.id}`;
+            }
+        });
+
+    // Метки
+    g.selectAll(".label")
+        .data(nodes, d => d.id)
+        .enter()
+        .append("text")
+        .attr("class", "label")
+        .text(d => d.label)
+        .attr("dy", 35);
+
+    // Связи
+    const link = g.selectAll(".link")
+        .data(links, d => `${d.source}-${d.target}`)
+        .enter()
+        .append("line")
+        .attr("class", "link");
+
+    // Анимация
+    simulation.on("tick", () => {
+        node.attr("cx", d => d.x = Math.max(40, Math.min(width - 40, d.x)))
+            .attr("cy", d => d.y = Math.max(40, Math.min(height - 40, d.y)));
+        link.attr("x1", d => d.source.x)
+            .attr("y1", d => d.source.y)
+            .attr("x2", d => d.target.x)
+            .attr("y2", d => d.target.y);
+        g.selectAll(".label")
+            .attr("x", d => d.x)
+            .attr("y", d => d.y);
+    });
+
+    function dragstarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+    }
+    function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+    }
+    function dragended(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+    }
+
+    function resetZoom() {
+        simulation.alpha(1).restart();
+    }
+});
+</script>
+{% endblock %}

@@ -248,6 +248,10 @@
                 <i class="fas fa-home"></i>
                 Дашборд
             </a>
+            <a href="{{ url_for('topology') }}" {% if request.endpoint == 'topology' %}class="active"{% endif %}>
+                <i class="fas fa-project-diagram"></i>
+                Топология
+            </a>
             <a href="{{ url_for('scripts') }}" {% if request.endpoint in ('scripts', 'edit_script') %}class="active"{% endif %}>
                 <i class="fas fa-file-code"></i>
                 Сценарии

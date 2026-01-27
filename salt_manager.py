@@ -155,3 +155,104 @@ class SaltManager:
         except Exception as e:
             logger.exception("Ошибка apply_rendered_state")
             return {"error": str(e)}
+
+    def get_neighbors(self, minion_id: str):
+        """
+        Возвращает список соседей в формате:
+        [
+            {"ip": "192.168.1.10", "mac": "aa:bb:cc:dd:ee:ff", "iface": "eth0", "state": "REACHABLE"},
+            ...
+        ]
+        """
+        if not self.is_available():
+            return []
+
+        try:
+            # Выполняем ip neigh show
+            result = self.local.cmd(minion_id, 'cmd.run', ['ip neigh show'], timeout=10)
+            output = result.get(minion_id, "")
+            if not isinstance(output, str):
+                return []
+
+            neighbors = []
+            for line in output.strip().splitlines():
+                # Пример строки: 192.168.1.10 dev eth0 lladdr aa:bb:cc:dd:ee:ff REACHABLE
+                parts = line.split()
+                if len(parts) < 4:
+                    continue
+
+                ip = parts[0]
+                if ":" in ip or ip.startswith(("127.", "169.254.", "0.0.0.0")):
+                    continue  # пропускаем IPv6 и локальные
+
+                try:
+                    dev_idx = parts.index("dev")
+                    iface = parts[dev_idx + 1] if dev_idx + 1 < len(parts) else "unknown"
+                except ValueError:
+                    iface = "unknown"
+
+                try:
+                    mac_idx = parts.index("lladdr")
+                    mac = parts[mac_idx + 1] if mac_idx + 1 < len(parts) else "unknown"
+                except ValueError:
+                    mac = "unknown"
+
+                # Состояние — последнее слово (REACHABLE, STALE, FAILED и т.д.)
+                state = parts[-1] if parts[-1].isupper() else "UNKNOWN"
+
+                neighbors.append({
+                    "ip": ip,
+                    "mac": mac,
+                    "iface": iface,
+                    "state": state
+                })
+
+            return neighbors
+
+        except Exception as e:
+            logger.warning(f"Не удалось получить соседей с {minion_id}: {e}")
+            return []
+
+    def get_all_network_nodes(self):
+        """Получить все узлы сети: миньоны + узлы из ARP"""
+        if not self.is_available():
+            return []
+
+        try:
+            minions = self.get_all_minions_info()
+            all_nodes = []
+            seen_ips = set()
+
+            # Добавляем миньоны
+            for minion in minions:
+                all_nodes.append({
+                    "id": minion["id"],
+                    "type": "minion",
+                    "label": minion["id"],
+                    "ip": minion.get("ip", []),
+                    "os": minion.get("os"),
+                    "status": "online" if minion.get("is_online") else "offline"
+                })
+                seen_ips.update(minion.get("ip", []))
+
+            # Собираем все уникальные узлы из ARP таблиц
+            for minion in minions:
+                arp_table = self.get_arp_table(minion["id"])
+                for entry in arp_table:
+                    ip = entry["ip"]
+                    if ip not in seen_ips and not ip.startswith("127.") and ip != "0.0.0.0":
+                        all_nodes.append({
+                            "id": ip,
+                            "type": "network_node",
+                            "label": ip,
+                            "ip": [ip],
+                            "mac": entry.get("mac"),
+                            "iface": entry.get("iface"),
+                            "status": "unknown"
+                        })
+                        seen_ips.add(ip)
+
+            return all_nodes
+        except Exception as e:
+            logger.exception("Ошибка в get_all_network_nodes")
+            return []
